@@ -10,23 +10,76 @@ import {
   isKingInCheck, 
   isCheckmate, 
   isStalemate,
-  COLORS 
+  COLORS,
+  PIECES 
 } from './chesslogic';
 
 const Chessboard = () => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
   const piecesRef = useRef(new Map()); // Map to track piece meshes
+  const boardStateRef = useRef(createInitialBoard()); // Add ref to track board state
   const [boardState, setBoardState] = useState(createInitialBoard());
+  // Add a movement tracker to keep track of actual piece positions
+  const movementTracker = useRef(Array(8).fill().map(() => Array(8).fill(null)));
   const [currentPlayer, setCurrentPlayer] = useState(COLORS.WHITE);
+  const currentPlayerRef = useRef(COLORS.WHITE); // Add ref to track current player
   const [selectedPiece, setSelectedPiece] = useState(null);
+  const selectedPieceRef = useRef(null); // Add ref to keep track of selected piece
   const [validMoves, setValidMoves] = useState([]);
   const [highlightMeshes, setHighlightMeshes] = useState([]);
+  const highlightMeshesRef = useRef([]); // Add a ref to track highlight meshes directly
   const [gameStatus, setGameStatus] = useState(null);
+  // Add move history tracking
+  const [moveHistory, setMoveHistory] = useState([]);
+  const moveHistoryRef = useRef([]); // Add a ref to track move history directly
   
   // Raycaster for detecting clicks on the board
   const raycaster = useRef(new THREE.Raycaster());
   const mouse = useRef(new THREE.Vector2());
+
+  // Function to get chess notation for a move
+  const getChessNotation = (piece, fromRow, fromCol, toRow, toCol, isCapture, isCheck, isCheckmate) => {
+    const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
+    
+    const fromSquare = files[fromCol] + ranks[fromRow];
+    const toSquare = files[toCol] + ranks[toRow];
+    
+    let notation = '';
+    
+    // Add piece letter (except for pawns)
+    if (piece.type !== PIECES.PAWN) {
+      switch (piece.type) {
+        case PIECES.KNIGHT: notation += 'N'; break;
+        case PIECES.BISHOP: notation += 'B'; break;
+        case PIECES.ROOK: notation += 'R'; break;
+        case PIECES.QUEEN: notation += 'Q'; break;
+        case PIECES.KING: notation += 'K'; break;
+      }
+    }
+    
+    // For captures
+    if (isCapture) {
+      // For pawn captures, add the file
+      if (piece.type === PIECES.PAWN) {
+        notation += fromSquare[0];
+      }
+      notation += 'x';
+    }
+    
+    // Add destination square
+    notation += toSquare;
+    
+    // Add check or checkmate symbol
+    if (isCheckmate) {
+      notation += '#';
+    } else if (isCheck) {
+      notation += '+';
+    }
+    
+    return notation;
+  };
 
   useEffect(() => {
     console.log('Chessboard component mounted');
@@ -241,68 +294,373 @@ const Chessboard = () => {
       mouse.current.y = -(event.clientY / window.innerHeight) * 2 + 1;
       
       console.log('Mouse clicked at:', mouse.current);
+      console.log('CURRENT TURN state:', currentPlayer);
+      console.log('CURRENT TURN ref:', currentPlayerRef.current);
+      
+      // Force synchronize the ref and state if they're out of sync
+      if (currentPlayer !== currentPlayerRef.current) {
+        console.warn('Ref and state out of sync! Fixing...');
+        console.warn(`Current player state: ${currentPlayer}, ref: ${currentPlayerRef.current}`);
+        
+        // CRITICAL: Trust the REF value as the source of truth
+        // This ensures consistent behavior during click events
+        console.warn('Setting state to match ref...');
+        setCurrentPlayer(currentPlayerRef.current);
+      }
+      
+      // IMPORTANT: From this point forward, we should ALWAYS use currentPlayerRef.current
+      // and not currentPlayer, since the state update might not have taken effect yet
+      const activePlayer = currentPlayerRef.current;
+      console.log('Active player for this click:', activePlayer);
+      console.log('WHITE:', COLORS.WHITE, 'BLACK:', COLORS.BLACK);
+      console.log('Is white turn?', activePlayer === COLORS.WHITE);
+      console.log('Is black turn?', activePlayer === COLORS.BLACK);
+      
+      // Show whose turn it is prominently in logs
+      if (activePlayer === COLORS.WHITE) {
+        console.log('%c WHITE PLAYER TURN ', 'background: white; color: black; font-weight: bold;');
+      } else {
+        console.log('%c BLACK PLAYER TURN ', 'background: black; color: white; font-weight: bold;');
+      }
+
+      // Log the current state of the movement tracker for debugging
+      logMovementTracker();
+      
+      // CRITICAL: Store a local copy of selected piece at the start
+      // This ensures we don't lose the selection during async state updates
+      const localSelectedPiece = selectedPieceRef.current ? {...selectedPieceRef.current} : null;
       
       // Raycast to find clicked objects
       raycaster.current.setFromCamera(mouse.current, camera);
-      const intersects = raycaster.current.intersectObjects(scene.children, true);
       
-      console.log('Intersected objects:', intersects.length);
+      console.log('CLICK HANDLER - Current selected piece REF:', selectedPieceRef.current);
+      console.log('CLICK HANDLER - Current selected piece STATE:', selectedPiece);
+      console.log('CLICK HANDLER - Local copy of selected piece:', localSelectedPiece);
       
-      if (intersects.length > 0) {
-        // Find the first intersected object that is either a square or a piece
-        const target = intersects.find(obj => {
-          return obj.object.userData && 
-            (obj.object.userData.type === 'square' || obj.object.userData.type === 'piece');
-        });
-        
-        if (target) {
-          console.log('Clicked on object:', target.object.userData);
-          const userData = target.object.userData;
+      // Check if we have a piece selected already - if so, we might be trying to move it
+      let havePieceSelected = localSelectedPiece && 
+                             localSelectedPiece.row !== undefined && 
+                             localSelectedPiece.col !== undefined;
+                             
+      if (havePieceSelected) {
+        console.log(`We have a piece selected: ${localSelectedPiece.color} ${localSelectedPiece.type} at ${localSelectedPiece.row},${localSelectedPiece.col}`);
+      }
+      
+      // For debug purposes, check what's under the cursor across ALL objects
+      const allObjects = [];
+      sceneRef.current.traverse((object) => {
+        if (object.isMesh || object instanceof THREE.Group) {
+          allObjects.push(object);
+        }
+      });
+      
+      const allIntersects = raycaster.current.intersectObjects(allObjects, true);
+      console.log('ALL intersects count:', allIntersects.length);
+      
+      // DIRECT APPROACH: Handle board click plane intersection
+      // This will convert click coordinates to board row/col
+        for (const intersect of allIntersects) {
+        if (intersect.object.name === 'boardClickPlane') {
+          console.log('HIT THE BOARD CLICK PLANE!');
           
-          // If we clicked on a piece that belongs to the current player
-          if (userData.type === 'piece' && userData.color === currentPlayer) {
-            console.log('Selected piece at row:', userData.row, 'col:', userData.col);
-            handlePieceSelection(userData.row, userData.col);
-          } 
-          // If we clicked on a square and have a piece selected
-          else if (userData.type === 'square' && selectedPiece) {
-            const { row, col } = userData;
-            const { row: selectedRow, col: selectedCol } = selectedPiece;
+          // Convert 3D intersection point to board coordinates
+          const point = intersect.point;
+          console.log('Intersection point:', point);
+          
+          // Board dimensions
+          const boardSize = 8;
+          const squareSize = 2.0;
+          const boardOffset = (boardSize * squareSize) / 2;
+          
+          // Calculate row and column from intersection point
+          // Adjusting for board position and orientation
+          const col = Math.floor((point.x + boardOffset) / squareSize);
+          const row = Math.floor((point.z + boardOffset) / squareSize);
+          
+          console.log(`Clicked on board at row ${row}, col ${col}`);
+          
+          // If coordinates are valid (within the board)
+          if (row >= 0 && row < 8 && col >= 0 && col < 8) {
+            console.log(`Board coordinates valid: row ${row}, col ${col}`);
             
-            console.log('Attempting to move from', selectedRow, selectedCol, 'to', row, col);
+            // First, check if we have a selected piece and this is a move
+            // CRITICAL: Use the local copy of the selected piece
+            console.log('Local selected piece copy:', localSelectedPiece);
             
-            // Check if the clicked square is a valid move
-            const isValidMove = validMoves.some(move => move[0] === row && move[1] === col);
-            
-            if (isValidMove) {
-              console.log('Valid move detected, moving piece');
-              handlePieceMove(selectedRow, selectedCol, row, col);
-            } else {
-              console.log('Invalid move attempt');
+            if (localSelectedPiece && localSelectedPiece.row !== undefined) {
+              // We have a selected piece - check if this is a valid move
+              const { row: fromRow, col: fromCol, type: pieceType } = localSelectedPiece;
+              console.log(`Checking if click at ${row},${col} is a valid move for ${pieceType} at ${fromRow},${fromCol}`);
               
-              // If the clicked square is not a valid move, but contains a piece of the current player,
-              // select that piece instead
-              const pieceAtSquare = boardState[row][col];
-              if (pieceAtSquare && pieceAtSquare.color === currentPlayer) {
-                handlePieceSelection(row, col);
+              // Get valid moves for this piece
+              const validMoves = getValidMoves(movementTracker.current, fromRow, fromCol);
+              console.log('Valid moves:', validMoves);
+              
+              // Check if clicked square is a valid move
+              const isValidMove = validMoves.some(([moveRow, moveCol]) => 
+                moveRow === row && moveCol === col);
+              
+              if (isValidMove) {
+                console.log(`VALID MOVE! Moving ${pieceType} from ${fromRow},${fromCol} to ${row},${col}`);
+                // IMPORTANT: Use our local copy of the selected piece
+                handlePieceMove(fromRow, fromCol, row, col);
+                return;
               } else {
-                // Deselect the current piece if clicking on an invalid move
-                setSelectedPiece(null);
-                clearHighlights();
+                console.log('Not a valid move for the selected piece');
+                
+                // If the clicked square has one of our pieces, select it instead
+                const pieceAtClick = movementTracker.current[row][col];
+                
+                // Debug the selection conditions
+                if (pieceAtClick) {
+                  console.log(`Piece at click: ${pieceAtClick.color} ${pieceAtClick.type}`);
+                  console.log(`Current player ref: ${activePlayer}`);
+                  console.log(`Can select? ${pieceAtClick.color === activePlayer}`);
+                  
+                  // Special handling for black pieces
+                  if (pieceAtClick.color === COLORS.BLACK && activePlayer === COLORS.BLACK) {
+                    console.log("Using force select for black piece");
+                    if (forceSelectPiece(row, col, activePlayer)) {
+                      return;
+                    }
+                  }
+                }
+                
+                if (pieceAtClick && pieceAtClick.color === activePlayer) {
+                  console.log(`Clicked on our own piece: ${pieceAtClick.color} ${pieceAtClick.type} at ${row},${col}`);
+                  
+                  // Select this piece instead
+                  if (directSelectPiece(row, col, activePlayer)) {
+                    return;
+                  }
+                } else {
+                  // If we clicked on an invalid location, just deselect
+                  console.log('Invalid move and no new piece to select - deselecting');
+                  clearHighlights(true);
+                  return;
+                }
+              }
+            } else {
+              // No piece selected - check if there's a piece to select at the clicked position
+              const pieceAtClick = movementTracker.current[row][col];
+              
+              // Debug the board state at the clicked position
+              console.log('Board state at clicked position:', pieceAtClick);
+              console.log('Full board state:', movementTracker.current);
+              
+              // Debug the selection conditions
+              if (pieceAtClick) {
+                console.log(`Piece at click: ${pieceAtClick.color} ${pieceAtClick.type}`);
+                console.log(`Current player ref: ${activePlayer}`);
+                console.log(`Can select? ${pieceAtClick.color === activePlayer}`);
+                
+                // Special handling for black pieces
+                if (pieceAtClick.color === COLORS.BLACK && activePlayer === COLORS.BLACK) {
+                  console.log("Using force select for black piece");
+                  if (forceSelectPiece(row, col, activePlayer)) {
+                    return;
+                  }
+                }
+              }
+              
+              if (pieceAtClick && pieceAtClick.color === activePlayer) {
+                console.log(`Clicked on our own piece: ${pieceAtClick.color} ${pieceAtClick.type} at ${row},${col}`);
+                if (directSelectPiece(row, col, activePlayer)) {
+                  return;
+                }
+              } else {
+                console.log(pieceAtClick ? 
+                  `Cannot select opponent's piece at ${row},${col}` : 
+                  `Empty square at ${row},${col} - nothing to select`);
+                
+                // Show a visual indicator for empty square clicks
+                showEmptySquareIndicator(row, col);
+                clearHighlights(true);
+                return;
               }
             }
-          } else if (userData.type === 'square') {
-            // Clicked on a square without having a piece selected
-            const pieceAtSquare = boardState[userData.row][userData.col];
-            if (pieceAtSquare && pieceAtSquare.color === currentPlayer) {
-              // If there's a piece of the current player at this square, select it
-              handlePieceSelection(userData.row, userData.col);
-            }
           }
-        } else {
-          console.log('No targetable object found in intersection');
+          
+          // If we clicked on the plane but outside the board, just deselect
+          clearHighlights(true);
+          return;
         }
       }
+      
+      // If we get here, we didn't hit the board plane, so check for direct piece selection
+      console.log('Checking for direct piece click...');
+      
+      // List of all pieces in the scene for debugging
+      console.log('ALL PIECES IN SCENE:');
+      let pieceCount = 0;
+      sceneRef.current.traverse((obj) => {
+        if (obj.userData && obj.userData.type === 'piece') {
+          console.log(`Piece ${pieceCount++}: ${obj.userData.color} ${obj.userData.pieceType} at ${obj.userData.row},${obj.userData.col}`);
+        }
+      });
+      
+      // Track whether we found a piece
+      let foundPiece = false;
+      
+      // First, try to find a direct piece intersection
+      for (const intersect of allIntersects) {
+        const obj = intersect.object;
+        
+        // Check if this object is a piece directly
+        if (obj.userData && obj.userData.type === 'piece') {
+          foundPiece = true;
+          const userData = obj.userData;
+          console.log('DIRECT HIT on piece:', userData);
+          console.log('Current player is:', currentPlayer);
+          console.log('Current player REF is:', currentPlayerRef.current);
+          
+          // Special handling for black pieces
+          if (userData.color === COLORS.BLACK && activePlayer === COLORS.BLACK) {
+            console.log("Using force select for black piece (direct hit)");
+            if (forceSelectPiece(userData.row, userData.col, activePlayer)) {
+              return;
+            }
+          }
+          
+          // If this is the current player's piece, select it
+          if (userData.color === activePlayer) {
+            console.log(`SELECTING: ${userData.color} ${userData.pieceType} at ${userData.row},${userData.col}`);
+            
+            const row = userData.row;
+            const col = userData.col;
+            
+            // Use the board state directly to validate the piece exists
+            const piece = movementTracker.current[row][col];
+            
+            if (!piece) {
+              console.error('PIECE IN SCENE BUT NOT IN BOARD STATE! This should not happen.');
+              console.error('Piece in scene at:', row, col);
+              console.error('Board state:', movementTracker.current);
+              console.error('Attempting direct board select instead of using scene object data...');
+              
+              // Try to find the piece in the boardState by searching for a matching piece
+              let foundInBoard = false;
+              for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                  const boardPiece = movementTracker.current[r][c];
+                  if (boardPiece && boardPiece.type === userData.pieceType && boardPiece.color === userData.color) {
+                    console.log(`Found matching piece in board at ${r},${c}`);
+                    if (directSelectPiece(r, c, activePlayer)) {
+                      foundInBoard = true;
+                      return;
+                    }
+                  }
+                }
+              }
+              
+              if (!foundInBoard) {
+                console.error('Could not find matching piece in board state');
+                continue;
+              }
+            }
+            
+            // Create and set the selected piece data
+            const pieceData = {
+              row,
+              col,
+              type: piece.type,
+              color: piece.color
+            };
+            
+            // Directly update both state and ref
+            setSelectedPiece(pieceData);
+            selectedPieceRef.current = pieceData;
+            
+            console.log('SELECTED PIECE NOW:', pieceData);
+            
+            // Calculate valid moves
+            const moves = getValidMoves(movementTracker.current, row, col);
+            console.log('Valid moves:', moves);
+            
+            // Set valid moves
+            setValidMoves(moves);
+            
+            // Highlight valid moves
+            highlightValidMoves(moves);
+            
+            return;
+          }
+        }
+      }
+      
+      // If we didn't find a direct piece hit, try parent traversal
+      if (!foundPiece) {
+        for (const intersect of allIntersects) {
+          let current = intersect.object;
+          
+          // Walk up the parent chain looking for a piece
+          while (current && !foundPiece) {
+            if (current.userData && current.userData.type === 'piece') {
+              foundPiece = true;
+              const userData = current.userData;
+              console.log('Found piece through parent traversal:', userData);
+              
+              // Special handling for black pieces
+              if (userData.color === COLORS.BLACK && activePlayer === COLORS.BLACK) {
+                console.log("Using force select for black piece (parent traversal)");
+                if (forceSelectPiece(userData.row, userData.col, activePlayer)) {
+                  return;
+                }
+              }
+              
+              // If this is the current player's piece, select it
+              if (userData.color === activePlayer) {
+                console.log(`SELECTING via parent: ${userData.color} ${userData.pieceType} at ${userData.row},${userData.col}`);
+                
+                // Directly handle selection here instead of calling another function
+                const row = userData.row;
+                const col = userData.col;
+                
+                // Double-check that there's a piece at this position in the board state
+                const piece = movementTracker.current[row][col];
+                if (!piece) {
+                  console.error('Piece in scene but not in board state!');
+                  break;
+                }
+                
+                // Create and set the selected piece data
+                const pieceData = {
+                  row,
+                  col,
+                  type: piece.type,
+                  color: piece.color
+                };
+                
+                // Directly update both state and ref
+                setSelectedPiece(pieceData);
+                selectedPieceRef.current = pieceData;
+                
+                console.log('SELECTED PIECE NOW:', pieceData);
+                
+                // Calculate valid moves
+                const moves = getValidMoves(movementTracker.current, row, col);
+                console.log('Valid moves:', moves);
+                
+                // Set valid moves
+                setValidMoves(moves);
+                
+                // Highlight valid moves
+                highlightValidMoves(moves);
+                
+                return;
+              }
+              break;
+            }
+            current = current.parent;
+          }
+          
+          if (foundPiece) break;
+        }
+      }
+      
+      // If nothing was clicked, deselect
+      console.log('No valid object clicked. Deselecting.');
+      clearHighlights(true);
     };
 
     // Handle window resize
@@ -315,6 +673,20 @@ const Chessboard = () => {
     window.addEventListener('resize', handleWindowResize);
     window.addEventListener('mousemove', handleMouseMove);
     window.addEventListener('click', handleMouseClick);
+    
+    // Add touch support for mobile devices
+    window.addEventListener('touchstart', (event) => {
+      // Prevent default to avoid scrolling/zooming
+      event.preventDefault();
+      
+      // Get the touch position
+      const touch = event.touches[0];
+      // Convert touch to mouse event for consistent handling
+      handleMouseClick({
+        clientX: touch.clientX,
+        clientY: touch.clientY
+      });
+    }, { passive: false });
 
     // Animation loop
     const animate = () => {
@@ -334,6 +706,7 @@ const Chessboard = () => {
       window.removeEventListener('resize', handleWindowResize);
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('click', handleMouseClick);
+      window.removeEventListener('touchstart', handleMouseClick);
       
       if (mountRef.current) {
         mountRef.current.removeChild(renderer.domElement);
@@ -353,6 +726,70 @@ const Chessboard = () => {
     };
   }, []);
 
+  // Add a separate effect to handle currentPlayer changes
+  useEffect(() => {
+    console.log('PLAYER CHANGED TO:', currentPlayer);
+    console.log('Previous currentPlayerRef was:', currentPlayerRef.current);
+    
+    // Only update the ref if it's different from the state
+    // This prevents unnecessary updates and potential issues
+    if (currentPlayerRef.current !== currentPlayer) {
+      console.log(`Updating ref to match state: ${currentPlayer}`);
+      // Update the ref so event handlers can access the current player
+      currentPlayerRef.current = currentPlayer;
+    } else {
+      console.log(`Ref and state already in sync: ${currentPlayer}`);
+    }
+    
+    console.log('Updated currentPlayerRef to:', currentPlayerRef.current);
+    
+    // Force a re-render after updating the ref
+    setTimeout(() => {
+      console.log('Verifying currentPlayerRef after update:', currentPlayerRef.current);
+      console.log('Verifying currentPlayer after update:', currentPlayer);
+    }, 0);
+  }, [currentPlayer]);
+
+  // Add an effect to synchronize boardStateRef with boardState
+  useEffect(() => {
+    boardStateRef.current = boardState;
+  }, [boardState]);
+
+  // Initialize the movement tracker with the initial board state
+  useEffect(() => {
+    // Make sure we properly initialize the movement tracker from the board state
+    console.log('Initializing movement tracker with current board state');
+    const initialBoard = createInitialBoard();
+    movementTracker.current = initialBoard.map(row => [...row]);
+    
+    // Log the initial state to verify
+    console.log('Initial movement tracker state:', movementTracker.current);
+  }, []);
+
+  // Log movement tracker whenever it changes
+  const logMovementTracker = () => {
+    console.log('Current movement tracker state:');
+    for (let row = 0; row < 8; row++) {
+      const rowPieces = [];
+      for (let col = 0; col < 8; col++) {
+        const piece = movementTracker.current[row][col];
+        if (piece) {
+          rowPieces.push(`${piece.color} ${piece.type}`);
+        } else {
+          rowPieces.push('empty');
+        }
+      }
+      console.log(`Row ${row}: ${rowPieces.join(' | ')}`);
+    }
+  };
+
+  // Add a debug function to check if pieces exist at a position
+  const debugPieceAtPosition = (row, col) => {
+    console.log(`Checking for piece at position [${row},${col}]`);
+    console.log(`BoardState at [${row},${col}]:`, boardState[row][col]);
+    console.log(`MovementTracker at [${row},${col}]:`, movementTracker.current[row][col]);
+  };
+
   // Place chess pieces based on the current board state
   const placePieces = (board) => {
     if (!sceneRef.current) return;
@@ -369,6 +806,11 @@ const Chessboard = () => {
     const boardSize = 8;  // 8x8 chess board
     const squareSize = 2.0;  // Reduced from 2.2 to make pieces closer together
     const boardOffset = (boardSize * squareSize) / 2;
+    
+    // Initialize the movement tracker with the board state - CRITICAL for correct functioning
+    console.log('Initializing movement tracker from current board state in placePieces');
+    movementTracker.current = board.map(row => [...row]);
+    logMovementTracker(); // Log the state to verify
     
     // Create and place new pieces
     for (let row = 0; row < boardSize; row++) {
@@ -410,6 +852,11 @@ const Chessboard = () => {
           // Add metadata to the piece
           pieceMesh.userData = { type: 'piece', row, col, pieceType: type, color };
           
+          // Propagate userData to all children for better click detection
+          pieceMesh.traverse((object) => {
+            object.userData = { type: 'piece', row, col, pieceType: type, color };
+          });
+          
           // Add the piece to the scene
           sceneRef.current.add(pieceMesh);
           
@@ -420,28 +867,52 @@ const Chessboard = () => {
     }
     
     console.log(`Placed ${piecesRef.current.size} chess pieces`);
+    
+    // Create the board click plane after placing pieces
+    createBoardClickPlane();
   };
 
   // Handle piece selection
   const handlePieceSelection = (row, col) => {
-    // Clear previous highlights
-    clearHighlights();
+    console.log(`Attempting to select piece at ${row},${col}`);
+    console.log(`Current player state: ${currentPlayer}, ref: ${currentPlayerRef.current}`);
     
-    const piece = boardState[row][col];
-    if (piece && piece.color === currentPlayer) {
-      // Set the selected piece
-      setSelectedPiece({ row, col, type: piece.type, color: piece.color });
+    // Get the piece from the movement tracker instead of board state
+    const piece = movementTracker.current[row][col];
+    if (piece) {
+      console.log(`Piece found: ${piece.color} ${piece.type}`);
+    }
+    
+    if (piece && piece.color === currentPlayerRef.current) {
+      console.log(`Selected ${piece.color} ${piece.type} at ${row},${col} (current player: ${currentPlayerRef.current})`);
+      
+      // Store selected piece in both state and ref
+      const pieceData = { row, col, type: piece.type, color: piece.color };
+      setSelectedPiece(pieceData);
+      selectedPieceRef.current = pieceData;
       
       // Get valid moves for this piece
-      const moves = getValidMoves(boardState, row, col);
+      // Use the movement tracker for calculating valid moves
+      const moves = getValidMoves(movementTracker.current, row, col);
+      console.log(`Found ${moves.length} valid moves for ${piece.type}:`, moves);
       setValidMoves(moves);
       
       // Highlight valid moves
       highlightValidMoves(moves);
-    } else {
+    } else if (piece) {
+      console.log(`Cannot select ${piece.color} ${piece.type} - it's ${currentPlayerRef.current}'s turn`);
       // Deselect if clicking on opponent's piece or empty square
       setSelectedPiece(null);
+      selectedPieceRef.current = null;
       setValidMoves([]);
+      clearHighlights(true);
+    } else {
+      console.log('No piece at selected position');
+      // Deselect if clicking on empty square
+      setSelectedPiece(null);
+      selectedPieceRef.current = null;
+      setValidMoves([]);
+      clearHighlights(true);
     }
   };
 
@@ -449,63 +920,240 @@ const Chessboard = () => {
   const highlightValidMoves = (moves) => {
     if (!sceneRef.current) return;
     
-    const highlightMeshes = [];
+    console.log('Highlighting', moves.length, 'valid moves');
+    
+    // Clear previous highlights first - BUT DO NOT CLEAR SELECTED PIECE
+    // We're calling this AFTER setting the selected piece, so we must
+    // keep the selected piece information intact
+    clearHighlights(false); // Don't clear the selected piece state!
+    
+    const newHighlightMeshes = [];
     const boardSize = 8;  // 8x8 chess board
     const squareSize = 2.0;  // Reduced from 2.2 to make pieces closer together
     const boardOffset = (boardSize * squareSize) / 2;
     
-    console.log('Highlighting', moves.length, 'valid moves');
-    
-    moves.forEach(([row, col]) => {
-      const isCapture = boardState[row][col] !== null;
-      const color = isCapture ? 0xff0000 : 0x00ff00;
-      
-      const geometry = new THREE.CylinderGeometry(0.35, 0.35, 0.05, 32);
-      const material = new THREE.MeshBasicMaterial({ 
-        color, 
-        transparent: true, 
-        opacity: 0.7 
-      });
-      
-      const highlight = new THREE.Mesh(geometry, material);
-      
-      // Calculate position to center highlight on square
+    // Helper function to create 3D highlight indicators
+    const create3DHighlight = (row, col, color, isSelectedPiece = false, isCapture = false) => {
+      // Calculate position to exactly match board squares
       const worldX = (col * squareSize) - boardOffset + (squareSize / 2);
       const worldZ = (row * squareSize) - boardOffset + (squareSize / 2);
       
-      highlight.position.set(
-        worldX,
-        0.3, // Height just above the board surface
-        worldZ
-      );
-      highlight.userData = { type: 'highlight' };
+      // Create a group to hold all highlight elements for this square
+      const highlightGroup = new THREE.Group();
+      highlightGroup.position.set(worldX, 0, worldZ);
+      highlightGroup.userData = {
+        type: 'highlight_group',
+        row,
+        col,
+        isSelectedPiece,
+        isCapture
+      };
       
-      sceneRef.current.add(highlight);
-      highlightMeshes.push(highlight);
+      // Define indicator dimensions
+      const indicatorHeight = 1.0; // Taller to be visible like chess pieces
+      const indicatorRadius = 0.4; // INCREASED from 0.3 to make easier to click
+      
+      // Create four indicator towers at the corners of the square
+      const cornerOffset = (squareSize / 2) - (indicatorRadius / 2);
+      
+      // Create corners similar to chess pieces
+      const corners = [
+        { x: cornerOffset, z: cornerOffset },     // NE
+        { x: -cornerOffset, z: cornerOffset },    // NW
+        { x: cornerOffset, z: -cornerOffset },    // SE
+        { x: -cornerOffset, z: -cornerOffset }    // SW
+      ];
+      
+      corners.forEach((corner, index) => {
+        // Use cylinder geometry similar to chess pieces
+        const towerGeometry = new THREE.CylinderGeometry(
+          indicatorRadius * 0.8, // top radius (slightly tapered)
+          indicatorRadius,      // bottom radius
+          indicatorHeight,      // height
+          16                    // segments
+        );
+        
+        const towerMaterial = new THREE.MeshStandardMaterial({
+          color: color,
+          transparent: true,
+          opacity: 0.8,
+          metalness: 0.5,
+          roughness: 0.5
+        });
+        
+        const tower = new THREE.Mesh(towerGeometry, towerMaterial);
+        
+        // Position the tower at corner, half height up from the board
+        tower.position.set(
+          corner.x,
+          indicatorHeight / 2, // Position from bottom of cylinder
+          corner.z
+        );
+        
+        tower.userData = {
+          type: 'highlight_tower',
+          cornerIndex: index,
+          row,
+          col,
+          isSelectedPiece,
+          isCapture
+        };
+        
+        highlightGroup.add(tower);
+      });
+      
+      // Create a LARGER thin 3D box for the base highlight instead of a plane
+      // This ensures it's visible from all angles and EASIER TO CLICK
+      const baseGeometry = new THREE.BoxGeometry(squareSize - 0.05, 0.1, squareSize - 0.05); // Increased height
+      
+      // Check if square is light or dark (chess board alternating pattern)
+      const isLightSquare = (row + col) % 2 === 0;
+      
+      // Adjust color based on whether it's a light or dark square
+      const adjustedColor = new THREE.Color(color);
+      
+      // Create a material that will blend with the underlying square color
+      const baseMaterial = new THREE.MeshStandardMaterial({ // Changed from MeshBasicMaterial
+        color: adjustedColor,
+        transparent: true,
+        opacity: 0.65,
+        metalness: 0.3,
+        roughness: 0.7
+      });
+      
+      const baseHighlight = new THREE.Mesh(baseGeometry, baseMaterial);
+      baseHighlight.position.set(0, 0.11, 0); // Just above the board surface
+      baseHighlight.userData = {
+        type: 'highlight_base',
+        row,
+        col,
+        isSelectedPiece,
+        isCapture
+      };
+      
+      highlightGroup.add(baseHighlight);
+      
+      // Add the highlight group to the scene
+      sceneRef.current.add(highlightGroup);
+      newHighlightMeshes.push(highlightGroup);
+      
+      // Add each part to the array for easier raycasting
+      highlightGroup.children.forEach(child => {
+        newHighlightMeshes.push(child);
+        // Add debug name for easier identification
+        child.name = `highlight_${row}_${col}_${child.userData.type}`;
+      });
+      
+      // Add debug name for the group
+      highlightGroup.name = `highlightGroup_${row}_${col}`;
+      
+      console.log(`Created highlight at ${row},${col} with ${highlightGroup.children.length} parts`);
+    };
+    
+    // Add highlight for selected piece
+    if (selectedPiece) {
+      const { row, col } = selectedPiece;
+      create3DHighlight(row, col, 0x0088ff, true, false); // Blue for selected piece
+    }
+    
+    // Add highlights for valid moves
+    moves.forEach(([row, col]) => {
+      const isCapture = movementTracker.current[row][col] !== null;
+      const color = isCapture ? 0xff0000 : 0x00ff00;  // Red for captures, green for moves
+      create3DHighlight(row, col, color, false, isCapture);
     });
     
-    // Store references to highlight meshes for later removal
-    setHighlightMeshes(highlightMeshes);
+    // Store references to highlight meshes in both ref and state
+    highlightMeshesRef.current = newHighlightMeshes;
+    setHighlightMeshes(newHighlightMeshes);
+    
+    // Verify selected piece is still intact after highlighting
+    console.log('After creating all highlights, selectedPieceRef is:', selectedPieceRef.current);
   };
 
   // Clear highlight indicators
-  const clearHighlights = () => {
+  const clearHighlights = (clearSelectedPiece = false) => {
     if (!sceneRef.current) return;
     
+    console.log(`Clearing highlights (clearSelectedPiece=${clearSelectedPiece})`);
+    
     // Remove all highlight meshes from the scene
-    highlightMeshes.forEach(mesh => {
-      sceneRef.current.remove(mesh);
-      mesh.geometry.dispose();
-      mesh.material.dispose();
+    highlightMeshesRef.current.forEach(mesh => {
+      if (sceneRef.current && mesh) {
+        sceneRef.current.remove(mesh);
+        if (mesh.geometry) mesh.geometry.dispose();
+        if (mesh.material) mesh.material.dispose();
+      }
     });
     
+    // Clear both the ref and the state for highlights
+    highlightMeshesRef.current = [];
     setHighlightMeshes([]);
+    
+    // Only clear selected piece state if explicitly asked
+    if (clearSelectedPiece) {
+      console.log('Clearing selected piece state');
+      setSelectedPiece(null);
+      selectedPieceRef.current = null;
+    } else {
+      console.log('Keeping selected piece state intact');
+    }
   };
 
   // Handle piece movement
   const handlePieceMove = (fromRow, fromCol, toRow, toCol) => {
-    // Check if the move is valid
-    const isValid = validMoves.some(([row, col]) => row === toRow && col === toCol);
+    console.log(`MOVING PIECE: from (${fromRow},${fromCol}) to (${toRow},${toCol})`);
+    console.log(`Current player: ${currentPlayer}, Current player ref: ${currentPlayerRef.current}`);
+    
+    // Debug current state before move
+    console.log('Movement tracker BEFORE move:');
+    logMovementTracker();
+    
+    // Get the piece being moved from the movement tracker
+    const movingPiece = movementTracker.current[fromRow][fromCol];
+    if (!movingPiece) {
+      console.error('No piece found at the starting position in movement tracker!');
+      
+      // Try fallback to board state
+      const boardPiece = boardState[fromRow][fromCol];
+      if (boardPiece) {
+        console.log('Found piece in board state, updating movement tracker before move');
+        // Update the movement tracker with the board state piece
+        const newMovementTracker = movementTracker.current.map(row => [...row]);
+        newMovementTracker[fromRow][fromCol] = boardPiece;
+        movementTracker.current = newMovementTracker;
+        
+        // Now try again with the updated movement tracker
+        return handlePieceMove(fromRow, fromCol, toRow, toCol);
+      }
+      
+      return;
+    }
+    
+    console.log('Moving piece:', movingPiece);
+    
+    // Verify that the piece being moved belongs to the current player
+    if (movingPiece.color !== currentPlayerRef.current) {
+      console.error(`Cannot move ${movingPiece.color} piece - it's ${currentPlayerRef.current}'s turn`);
+      return;
+    }
+    
+    // SAFETY CHECK: Ensure we're using the local values, not the possibly-cleared ref
+    console.log('Selected piece ref when moving:', selectedPieceRef.current);
+    
+    // Get fresh valid moves using the movement tracker
+    const currentValidMoves = getValidMoves(movementTracker.current, fromRow, fromCol);
+    
+    // Check if the move is valid using the fresh moves
+    const isValid = currentValidMoves.some(([row, col]) => row === toRow && col === toCol);
+    
+    console.log('Move validation:', { 
+      from: [fromRow, fromCol], 
+      to: [toRow, toCol],
+      isValid,
+      validMoves: currentValidMoves,
+      pieceType: movingPiece?.type
+    });
     
     if (!isValid) {
       console.error('Invalid move attempted');
@@ -514,194 +1162,419 @@ const Chessboard = () => {
     
     console.log(`Moving piece from (${fromRow},${fromCol}) to (${toRow},${toCol})`);
     
-    // Create a new board state after the move
-    const newBoardState = makeMove(boardState, fromRow, fromCol, toRow, toCol);
-    
     // Check if this is a capture (if there's a piece at the destination)
-    const isCapture = boardState[toRow][toCol] !== null;
+    const isCapture = movementTracker.current[toRow][toCol] !== null;
     if (isCapture) {
       console.log('Capture detected!');
     }
     
-    // Animate the piece movement and update the board
-    try {
-      animatePieceMove(fromRow, fromCol, toRow, toCol, isCapture, () => {
-        // Update the board state
-        setBoardState(newBoardState);
-        
-        // Clear selection and highlights
-        setSelectedPiece(null);
-        clearHighlights();
-        
-        // Switch player
-        const nextPlayer = currentPlayer === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
-        setCurrentPlayer(nextPlayer);
-        
-        // Check for check, checkmate, or stalemate
-        if (isKingInCheck(newBoardState, nextPlayer)) {
-          if (isCheckmate(newBoardState, nextPlayer)) {
-            setGameStatus(`Checkmate! ${currentPlayer === COLORS.WHITE ? 'White' : 'Black'} wins!`);
-          } else {
-            setGameStatus(`${nextPlayer === COLORS.WHITE ? 'White' : 'Black'} is in check!`);
-          }
-        } else if (isStalemate(newBoardState, nextPlayer)) {
-          setGameStatus('Stalemate! The game is a draw.');
-        } else {
-          setGameStatus(null);
-        }
-      });
-    } catch (error) {
-      console.error('Error during piece movement:', error);
-      // Fallback: update the board state directly if animation fails
-      setBoardState(newBoardState);
-      setSelectedPiece(null);
-      clearHighlights();
-      setCurrentPlayer(currentPlayer === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE);
-    }
+    // IMPORTANT: First clear the selection before we start moving
+    // This prevents issues with React state not being immediately updated
+    const capturedPieceData = isCapture ? movementTracker.current[toRow][toCol] : null;
+    
+    // Clear selection and highlights now (before we modify the board state)
+    // This prevents race conditions with the state updates
+    clearHighlights(true);
+    
+    // Create a new board state after the move
+    const newBoardState = makeMove(boardState, fromRow, fromCol, toRow, toCol);
+    
+    // IMPORTANT: Update the board state immediately
+    setBoardState(newBoardState);
+    
+    // IMPORTANT: Also update the movement tracker to reflect the actual piece positions
+    // This allows us to track piece positions independently from the boardState
+    const newMovementTracker = movementTracker.current.map(row => [...row]);
+    newMovementTracker[toRow][toCol] = newMovementTracker[fromRow][fromCol];
+    newMovementTracker[fromRow][fromCol] = null;
+    movementTracker.current = newMovementTracker;
+    
+    // Debug movement tracker after move
+    console.log('Movement tracker AFTER move:');
+    logMovementTracker();
+    
+    // Directly move the piece on the board (visually)
+    movePieceOnBoard(fromRow, fromCol, toRow, toCol, isCapture, () => {
+      console.log('Piece movement animation complete');
+      
+      // Note: We've already cleared selection before the board state update
+      // Don't clear again to avoid race conditions
+      // This line remains just for reference, but we've already cleared
+      // setSelectedPiece(null);
+      // selectedPieceRef.current = null;
+      // clearHighlights(true);
+      
+      // Switch player - IMPORTANT: We need to be careful with player state
+      // Use the currentPlayerRef as the source of truth, not the potentially stale currentPlayer state
+      const currentTurn = currentPlayerRef.current;
+      const nextPlayer = currentTurn === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
+      
+      console.log(`Switching player from ${currentTurn} (ref) to ${nextPlayer}`);
+      console.log(`Previous currentPlayerRef value: ${currentPlayerRef.current}`);
+      
+      // IMPORTANT: Update the ref immediately before setting state
+      // This ensures the ref is always in sync with what we expect the state to be
+      currentPlayerRef.current = nextPlayer;
+      
+      // IMPORTANT: Also update the state to match the ref
+      // This synchronizes both values for proper interface updates
+      setCurrentPlayer(nextPlayer);
+      
+      console.log(`Updated currentPlayerRef to: ${currentPlayerRef.current}`);
+      
+      // Check for check, checkmate, or stalemate using the movement tracker
+      const isInCheck = isKingInCheck(newMovementTracker, nextPlayer);
+      const isInCheckmate = isInCheck && isCheckmate(newMovementTracker, nextPlayer);
+      
+      // Record the move in chess notation
+      const moveNotation = getChessNotation(
+        movingPiece, 
+        fromRow, 
+        fromCol, 
+        toRow, 
+        toCol, 
+        isCapture, 
+        isInCheck, 
+        isInCheckmate
+      );
+      
+      // Add the move to history
+      const newMove = {
+        piece: movingPiece,
+        from: [fromRow, fromCol],
+        to: [toRow, toCol],
+        isCapture,
+        isCheck: isInCheck,
+        isCheckmate: isInCheckmate,
+        player: currentTurn,
+        notation: moveNotation,
+        nextPlayer: nextPlayer // Include the next player in move history for debugging
+      };
+      console.log('Added move to history:', newMove);
+      
+      // Update both the ref and the state to prevent race conditions
+      const updatedHistory = [...moveHistoryRef.current, newMove];
+      moveHistoryRef.current = updatedHistory;
+      setMoveHistory(updatedHistory);
+      
+      // Update game status
+      if (isInCheckmate) {
+        setGameStatus(`Checkmate! ${currentTurn === COLORS.WHITE ? 'White' : 'Black'} wins!`);
+      } else if (isInCheck) {
+        setGameStatus(`${nextPlayer === COLORS.WHITE ? 'White' : 'Black'} is in check!`);
+      } else if (isStalemate(newMovementTracker, nextPlayer)) {
+        setGameStatus('Stalemate! The game is a draw.');
+      } else {
+        setGameStatus(null);
+      }
+    });
   };
 
-  // Animate piece movement
-  const animatePieceMove = (fromRow, fromCol, toRow, toCol, isCapture, onComplete) => {
+  // Move piece on the 3D board (visually)
+  const movePieceOnBoard = (fromRow, fromCol, toRow, toCol, isCapture, onComplete) => {
     const pieceMesh = piecesRef.current.get(`${fromRow}-${fromCol}`);
     if (!pieceMesh || !sceneRef.current) {
-      console.error('Could not find piece to animate');
+      console.error('Could not find piece to move');
       if (onComplete) onComplete();
       return;
     }
+    
+    console.log('MOVING PIECE MESH on board');
     
     const boardSize = 8;  // 8x8 chess board
     const squareSize = 2.0;  // Reduced from 2.2 to make pieces closer together
     const boardOffset = (boardSize * squareSize) / 2;
     
-    // Calculate start and end positions using the same logic as piece placement
-    const startX = (fromCol * squareSize) - boardOffset + (squareSize / 2);
-    const startZ = (fromRow * squareSize) - boardOffset + (squareSize / 2);
+    // Calculate destination position
+    const destX = (toCol * squareSize) - boardOffset + (squareSize / 2);
+    const destZ = (toRow * squareSize) - boardOffset + (squareSize / 2);
     
-    const endX = (toCol * squareSize) - boardOffset + (squareSize / 2);
-    const endZ = (toRow * squareSize) - boardOffset + (squareSize / 2);
-    
-    // Calculate start and end positions
-    const startPos = new THREE.Vector3(
-      startX, 
-      0.8, // Match the height used in placePieces
-      startZ
-    );
-    const endPos = new THREE.Vector3(
-      endX, 
-      0.8, // Match the height used in placePieces
-      endZ
-    );
-    
-    console.log('Animation: Moving from', startPos, 'to', endPos);
-    
-    // If there's a captured piece, animate it disappearing
+    // Handle captured piece - remove it immediately
     if (isCapture) {
       const capturedPiece = piecesRef.current.get(`${toRow}-${toCol}`);
       if (capturedPiece) {
-        console.log('Animating capture of piece at', toRow, toCol);
-        // Remove it from our reference map
+        console.log('Removing captured piece from scene');
+        sceneRef.current.remove(capturedPiece);
         piecesRef.current.delete(`${toRow}-${toCol}`);
-        
-        // Animate it floating up and fading out
-        const captureAnimation = {
-          y: capturedPiece.position.y,
-          opacity: 1
-        };
-        
-        const duration = 500;
-        let startTime = null;
-        
-        const animateCapturedPiece = (timestamp) => {
-          if (!startTime) startTime = timestamp;
-          const elapsed = timestamp - startTime;
-          const progress = Math.min(elapsed / duration, 1);
-          
-          capturedPiece.position.y = captureAnimation.y + progress * 2;
-          
-          // Update material opacity
-          capturedPiece.traverse((object) => {
-            if (object.isMesh && object.material) {
-              if (!object.material.transparent) {
-                object.material = object.material.clone();
-                object.material.transparent = true;
-              }
-              object.material.opacity = 1 - progress;
-            }
-          });
-          
-          if (progress < 1) {
-            requestAnimationFrame(animateCapturedPiece);
-          } else {
-            // Remove the piece from the scene
-            sceneRef.current.remove(capturedPiece);
-            
-            // Dispose of geometries and materials
-            capturedPiece.traverse((object) => {
-              if (object.geometry) object.geometry.dispose();
-              if (object.material) {
-                if (Array.isArray(object.material)) {
-                  object.material.forEach(mat => mat.dispose());
-                } else {
-                  object.material.dispose();
-                }
-              }
-            });
-          }
-        };
-        
-        requestAnimationFrame(animateCapturedPiece);
-      } else {
-        console.warn('Capture indicated but no piece found at destination');
       }
     }
     
-    // Animate the moving piece
-    const moveAnimation = {
-      x: startPos.x,
-      z: startPos.z,
-      y: startPos.y
-    };
+    console.log(`Moving piece from (${pieceMesh.position.x}, ${pieceMesh.position.z}) to (${destX}, ${destZ})`);
     
-    const duration = 500;
-    let startTime = null;
+    // Force-update piece position
+    pieceMesh.position.set(destX, pieceMesh.position.y, destZ);
     
-    const animateMovingPiece = (timestamp) => {
-      if (!startTime) startTime = timestamp;
-      const elapsed = timestamp - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      
-      // Interpolate position
-      moveAnimation.x = startPos.x + (endPos.x - startPos.x) * progress;
-      moveAnimation.z = startPos.z + (endPos.z - startPos.z) * progress;
-      
-      // Add a slight arc for better visual effect
-      moveAnimation.y = startPos.y + Math.sin(progress * Math.PI) * 0.7;
-      
-      // Update the piece position
-      pieceMesh.position.set(moveAnimation.x, moveAnimation.y, moveAnimation.z);
-      
-      if (progress < 1) {
-        requestAnimationFrame(animateMovingPiece);
-      } else {
-        // Ensure the piece is exactly at the end position
-        pieceMesh.position.copy(endPos);
-        
-        // Update the piece's metadata
-        pieceMesh.userData.row = toRow;
-        pieceMesh.userData.col = toCol;
-        
-        // Update our reference map
-        piecesRef.current.delete(`${fromRow}-${fromCol}`);
-        piecesRef.current.set(`${toRow}-${toCol}`, pieceMesh);
-        
-        console.log('Animation complete');
-        
-        // Call the completion callback
-        if (onComplete) onComplete();
+    // Update userData and references for the piece and all its children
+    // This is critical to ensure click detection works properly after moves
+    pieceMesh.userData.row = toRow;
+    pieceMesh.userData.col = toCol;
+    
+    // Update userData for all children
+    pieceMesh.traverse((object) => {
+      if (object !== pieceMesh) { // Skip the parent which we already updated
+        object.userData = { 
+          ...pieceMesh.userData 
+        };
       }
+    });
+    
+    // Update the map references
+    piecesRef.current.delete(`${fromRow}-${fromCol}`);
+    piecesRef.current.set(`${toRow}-${toCol}`, pieceMesh);
+    
+    console.log('Movement complete - updated userData for piece and all children');
+    
+    // Debug verification after move
+    console.log('Piece userData after move:', pieceMesh.userData);
+    
+    if (onComplete) onComplete();
+  };
+
+  // Format move for display
+  const formatMoveNumber = (index, player) => {
+    const moveNumber = Math.floor(index / 2) + 1;
+    return player === COLORS.WHITE ? `${moveNumber}. ` : '';
+  };
+
+  // Add a special click handling plane to capture all board clicks
+  const createBoardClickPlane = () => {
+    if (!sceneRef.current) return;
+    
+    console.log('Creating board click detection plane');
+    
+    // Remove any existing click plane
+    const existingPlane = sceneRef.current.getObjectByName('boardClickPlane');
+    if (existingPlane) {
+      sceneRef.current.remove(existingPlane);
+    }
+    
+    const boardSize = 8;  // 8x8 chess board
+    const squareSize = 2.0;
+    const fullBoardSize = boardSize * squareSize;
+    
+    // Create a plane that covers the entire board
+    const planeGeometry = new THREE.PlaneGeometry(fullBoardSize, fullBoardSize);
+    const planeMaterial = new THREE.MeshBasicMaterial({ 
+      transparent: true, 
+      opacity: 0.001,  // Almost invisible
+      side: THREE.DoubleSide 
+    });
+    
+    const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+    plane.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+    plane.position.y = 0.15; // Just above the board
+    plane.name = 'boardClickPlane';
+    
+    // Add userData for click detection with row/col info
+    plane.userData = {
+      type: 'boardClickPlane'
     };
     
-    requestAnimationFrame(animateMovingPiece);
+    sceneRef.current.add(plane);
+    console.log('Board click plane added');
+  };
+
+  // Force select a piece directly, bypassing all checks - use for black pieces
+  const forceSelectPiece = (row, col, activePlayerOverride = null) => {
+    console.log(`FORCE SELECT: Selecting piece at ${row},${col}`);
+    console.log(`FORCE SELECT: Current player ref: ${currentPlayerRef.current}`);
+    
+    try {
+      // Debug the position before trying to access it
+      debugPieceAtPosition(row, col);
+      
+      // Get the piece from the movement tracker
+      const piece = movementTracker.current[row][col];
+      if (!piece) {
+        console.error('No piece at selected position in movement tracker!');
+        
+        // Try the board state as a fallback
+        const boardPiece = boardState[row][col];
+        if (boardPiece) {
+          console.log('Found piece in board state, updating movement tracker');
+          // Update the movement tracker with the board state piece
+          const newMovementTracker = movementTracker.current.map(row => [...row]);
+          newMovementTracker[row][col] = boardPiece;
+          movementTracker.current = newMovementTracker;
+          
+          // Now try again with the updated movement tracker
+          return forceSelectPiece(row, col, activePlayerOverride);
+        }
+        
+        return false;
+      }
+      
+      console.log(`Found piece: ${piece.color} ${piece.type}`);
+      
+      // Use the provided activePlayer if available, otherwise use the ref
+      const activePlayer = activePlayerOverride || currentPlayerRef.current;
+      console.log(`Using active player: ${activePlayer} for validation`);
+      
+      // Verify this is the current player's piece
+      if (piece.color !== activePlayer) {
+        console.error(`Cannot select ${piece.color} piece - it's ${activePlayer}'s turn`);
+        return false;
+      }
+      
+      // Create piece data - no validation checks, we're forcing selection
+      const pieceData = {
+        row,
+        col,
+        type: piece.type,
+        color: piece.color
+      };
+      
+      // CRITICAL: Clear highlights without clearing the piece selection
+      clearHighlights(false);
+      
+      // IMPORTANT: Set the ref first, then the state
+      // This ensures the ref is always available immediately
+      selectedPieceRef.current = pieceData;
+      setSelectedPiece(pieceData);
+      
+      console.log('Selected piece set to:', pieceData);
+      console.log('selectedPieceRef is now:', selectedPieceRef.current);
+      
+      // Get valid moves
+      const moves = getValidMoves(movementTracker.current, row, col);
+      console.log(`Found ${moves.length} valid moves:`, moves);
+      
+      // Set valid moves and highlight them
+      setValidMoves(moves);
+      highlightValidMoves(moves);
+      
+      return true;
+    } catch (error) {
+      console.error('Error in forceSelectPiece:', error);
+      return false;
+    }
+  };
+
+  // Add a direct way to select a piece that bypasses React state timing issues
+  const directSelectPiece = (row, col, activePlayerOverride = null) => {
+    console.log(`DIRECT SELECT: Selecting piece at ${row},${col}`);
+    console.log(`DIRECT SELECT: Current player state: ${currentPlayer}, ref: ${currentPlayerRef.current}`);
+    
+    try {
+      // Debug the position before trying to access it
+      debugPieceAtPosition(row, col);
+      
+      // Get the piece from the movement tracker
+      const piece = movementTracker.current[row][col];
+      if (!piece) {
+        console.error('No piece at selected position in movement tracker!');
+        
+        // Try the board state as a fallback
+        const boardPiece = boardState[row][col];
+        if (boardPiece) {
+          console.log('Found piece in board state, updating movement tracker');
+          // Update the movement tracker with the board state piece
+          const newMovementTracker = movementTracker.current.map(row => [...row]);
+          newMovementTracker[row][col] = boardPiece;
+          movementTracker.current = newMovementTracker;
+          
+          // Now try again with the updated movement tracker
+          return directSelectPiece(row, col, activePlayerOverride);
+        }
+        
+        return false;
+      }
+      
+      console.log(`Found piece: ${piece.color} ${piece.type}`);
+      console.log(`Current player is: ${currentPlayer}`);
+      console.log(`Current player REF is: ${currentPlayerRef.current}`);
+      
+      // Use the provided activePlayer if available, otherwise use the ref
+      const activePlayer = activePlayerOverride || currentPlayerRef.current;
+      console.log(`Using active player: ${activePlayer} for validation`);
+      
+      // Verify this is the current player's piece
+      if (piece.color !== activePlayer) {
+        console.error(`Cannot select piece: it's ${activePlayer}'s turn, but piece is ${piece.color}`);
+        return false;
+      }
+      
+      // Create piece data
+      const pieceData = {
+        row,
+        col,
+        type: piece.type,
+        color: piece.color
+      };
+      
+      // CRITICAL: Clear highlights without clearing the piece selection
+      clearHighlights(false);
+      
+      // IMPORTANT: Set the ref first, then the state
+      // This ensures the ref is always available immediately
+      selectedPieceRef.current = pieceData;
+      setSelectedPiece(pieceData);
+      
+      console.log('Selected piece set to:', pieceData);
+      console.log('selectedPieceRef is now:', selectedPieceRef.current);
+      
+      // Get valid moves
+      const moves = getValidMoves(movementTracker.current, row, col);
+      console.log(`Found ${moves.length} valid moves:`, moves);
+      
+      // Set valid moves and highlight them
+      setValidMoves(moves);
+      highlightValidMoves(moves);
+      
+      // Verify the selection still exists after highlighting
+      console.log('After highlighting, selectedPieceRef is:', selectedPieceRef.current);
+      
+      return true;
+    } catch (error) {
+      console.error('Error in directSelectPiece:', error);
+      return false;
+    }
+  };
+
+  // Visual indicator for empty square clicks
+  const showEmptySquareIndicator = (row, col) => {
+    if (!sceneRef.current) return;
+    
+    // Board measurements
+    const boardSize = 8;  // 8x8 chess board
+    const squareSize = 2.0;
+    const boardOffset = (boardSize * squareSize) / 2;
+    
+    // Calculate position
+    const worldX = (col * squareSize) - boardOffset + (squareSize / 2);
+    const worldZ = (row * squareSize) - boardOffset + (squareSize / 2);
+    
+    // Create a simple indicator (red X)
+    const indicatorGroup = new THREE.Group();
+    indicatorGroup.position.set(worldX, 0.2, worldZ); // Just above the board
+    
+    // Create a red X using two crossed lines
+    const lineGeometry1 = new THREE.BoxGeometry(0.8, 0.1, 0.1);
+    const lineGeometry2 = new THREE.BoxGeometry(0.1, 0.1, 0.8);
+    const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+    
+    const line1 = new THREE.Mesh(lineGeometry1, material);
+    line1.rotation.y = Math.PI / 4;
+    
+    const line2 = new THREE.Mesh(lineGeometry2, material);
+    line2.rotation.y = Math.PI / 4;
+    
+    indicatorGroup.add(line1);
+    indicatorGroup.add(line2);
+    
+    // Add to scene
+    sceneRef.current.add(indicatorGroup);
+    
+    // Remove after a short delay
+    setTimeout(() => {
+      if (sceneRef.current) {
+        sceneRef.current.remove(indicatorGroup);
+        indicatorGroup.children.forEach(child => {
+          child.geometry.dispose();
+          child.material.dispose();
+        });
+      }
+    }, 700); // Remove after 700ms
   };
 
   return (
@@ -744,8 +1617,57 @@ const Chessboard = () => {
       }}>
         Current Player: {currentPlayer === COLORS.WHITE ? 'White' : 'Black'}
       </div>
+      
+      {/* Move History Panel */}
+      <div style={{
+        position: 'absolute',
+        top: '60px',
+        right: '20px',
+        backgroundColor: 'rgba(245, 245, 245, 0.9)',
+        boxShadow: '0 0 10px rgba(0, 0, 0, 0.2)',
+        padding: '10px',
+        borderRadius: '5px',
+        maxHeight: '70vh',
+        overflowY: 'auto',
+        zIndex: 1000,
+        width: '200px'
+      }}>
+        <h3 style={{ textAlign: 'center', margin: '0 0 10px 0' }}>Move History</h3>
+        <div style={{ fontFamily: 'monospace' }}>
+          {/* Group moves by pairs (white and black) for display */}
+          {Array.from({ length: Math.ceil(moveHistory.length / 2) }, (_, i) => {
+            const whiteMove = moveHistory[i * 2];
+            const blackMove = moveHistory[i * 2 + 1];
+            return (
+              <div key={i} style={{ marginBottom: '3px' }}>
+                {whiteMove && (
+                  <span
+                    style={{ 
+                      color: whiteMove.isCapture ? '#c00' : 'black',
+                      fontWeight: whiteMove.isCheck || whiteMove.isCheckmate ? 'bold' : 'normal',
+                      marginRight: '5px'
+                    }}
+                  >
+                    {`${i + 1}. ${whiteMove.notation}`}
+                  </span>
+                )}
+                {blackMove && (
+                  <span
+                    style={{ 
+                      color: blackMove.isCapture ? '#c00' : 'black',
+                      fontWeight: blackMove.isCheck || blackMove.isCheckmate ? 'bold' : 'normal',
+                    }}
+                  >
+                    {blackMove.notation}
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
   );
 };
 
-export default Chessboard; 
+export default Chessboard;
