@@ -1,12 +1,56 @@
-# React + Vite
+# 3D Chess Application
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A modern 3D chess game built with React and Three.js.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Interactive 3D chess board
+- Realistic chess piece models
+- Standard chess rules and gameplay
+- Smooth animations and transitions
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript and enable type-aware lint rules. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Prerequisites
+
+- Node.js (v14 or higher)
+- npm or yarn
+
+### Installation
+
+1. Clone the repository
+
+`git clone https://github.com/duvarakeshss/Chess`
+`cd Chess/frontend`
+
+2. Install dependencies
+
+```
+npm install
+```
+
+3. Start the development server
+
+```
+npm run dev
+```
+
+4. Open your browser and navigate to the local development server (typically http://localhost:5173)
+
+## Tech Stack
+
+- **React** - UI framework
+- **Three.js** - 3D rendering library
+- **Vite** - Build tool and development server
+
+## Project Structure
+
+- `/public` - Public assets
+  - `/models` - 3D model files
+    - `Chessboard.glb` - 3D chessboard model
+- `/src` - Source code
+  - `/components` - React components
+
+    - `Chessboard.jsx` - 3D chessboard implementation
+    - `ChessPieces.jsx` - 3D chess piece models
+    - `chesslogic.jsx` - Chess game logic and rules
