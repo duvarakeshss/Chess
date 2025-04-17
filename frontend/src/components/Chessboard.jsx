@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { createChessPieceMesh } from './ChessPieces';
+import toast from 'react-hot-toast';
 import { 
   createInitialBoard, 
   getValidMoves, 
@@ -1231,6 +1232,38 @@ const Chessboard = () => {
         setShowWinnerPopup(true);
       } else {
         setGameStatus(null);
+      }
+      
+      // Display toast notification for the move
+      const colorText = currentTurn === COLORS.WHITE ? 'White' : 'Black';
+      
+      // Show appropriate toast based on game state
+      if (isInCheckmate) {
+        toast.success(`${colorText} wins by checkmate! ${moveNotation}`, {
+          icon: '♔',
+          style: {
+            borderRadius: '10px',
+            background: '#333',
+            color: '#fff',
+          },
+        });
+      } else if (isInCheck) {
+        toast(`${colorText} moves: ${moveNotation} - Check!`, {
+          icon: '♖',
+          style: {
+            borderRadius: '10px',
+            background: '#333',
+            color: '#fff',
+          },
+        });
+      } else {
+        toast(`${colorText} moves: ${moveNotation}`, {
+          style: {
+            borderRadius: '10px',
+            background: '#333',
+            color: '#fff',
+          },
+        });
       }
     });
   };
