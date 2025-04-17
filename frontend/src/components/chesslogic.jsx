@@ -62,16 +62,12 @@ const getPawnMoves = (board, row, col, color) => {
   const direction = color === COLORS.WHITE ? -1 : 1;
   const startRow = color === COLORS.WHITE ? 6 : 1;
   
-  console.log(`Calculating pawn moves for ${color} pawn at ${row},${col}. Direction: ${direction}, StartRow: ${startRow}`);
-  
   // Forward move (one step)
   if (isValidPosition(row + direction, col) && !board[row + direction][col]) {
-    console.log(`Adding forward move to ${row + direction},${col}`);
     moves.push([row + direction, col]);
     
     // Forward move (two steps) if pawn is at starting position
     if (row === startRow && isValidPosition(row + 2 * direction, col) && !board[row + 2 * direction][col] && !board[row + direction][col]) {
-      console.log(`Adding double forward move to ${row + 2 * direction},${col} from starting position`);
       moves.push([row + 2 * direction, col]);
     }
   }
@@ -84,13 +80,10 @@ const getPawnMoves = (board, row, col, color) => {
   
   for (const [r, c] of captureMoves) {
     if (isValidPosition(r, c) && board[r][c] && board[r][c].color !== color) {
-      console.log(`Adding capture move to ${r},${c}`);
       moves.push([r, c]);
     }
   }
   
-  console.log(`Total valid moves for pawn: ${moves.length}`);
-  console.log(`Found ${moves.length} valid moves for pawn:`, moves);
   return moves;
 };
 
@@ -272,27 +265,11 @@ export const makeMove = (board, fromRow, fromCol, toRow, toCol) => {
   // Create a deep copy of the board to avoid mutating the original
   const newBoard = board.map(row => [...row]);
   
-  // Get the piece being moved for debugging
-  const movingPiece = newBoard[fromRow][fromCol];
-  
-  console.log(`MAKING MOVE in chesslogic - Moving ${movingPiece?.color} ${movingPiece?.type} from [${fromRow},${fromCol}] to [${toRow},${toCol}]`);
-  
-  // Check if there's a piece to capture
-  const capturedPiece = newBoard[toRow][toCol];
-  if (capturedPiece) {
-    console.log(`CAPTURE: ${capturedPiece.color} ${capturedPiece.type} at [${toRow},${toCol}]`);
-  }
-  
   // Move the piece to the destination
-  newBoard[toRow][toCol] = movingPiece;
+  newBoard[toRow][toCol] = newBoard[fromRow][fromCol];
   
   // Clear the source square
   newBoard[fromRow][fromCol] = null;
-  
-  // Verify the move was performed correctly
-  console.log('MOVE VERIFICATION:');
-  console.log(`Source square [${fromRow},${fromCol}] is now:`, newBoard[fromRow][fromCol]);
-  console.log(`Destination square [${toRow},${toCol}] is now:`, newBoard[toRow][toCol]);
   
   return newBoard;
 };

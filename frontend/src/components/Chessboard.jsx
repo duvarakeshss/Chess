@@ -33,6 +33,9 @@ const Chessboard = () => {
   // Add move history tracking
   const [moveHistory, setMoveHistory] = useState([]);
   const moveHistoryRef = useRef([]); // Add a ref to track move history directly
+  // Add winner popup state
+  const [showWinnerPopup, setShowWinnerPopup] = useState(false);
+  const [winner, setWinner] = useState(null);
   
   // Raycaster for detecting clicks on the board
   const raycaster = useRef(new THREE.Raycaster());
@@ -40,6 +43,8 @@ const Chessboard = () => {
 
   // Function to get chess notation for a move
   const getChessNotation = (piece, fromRow, fromCol, toRow, toCol, isCapture, isCheck, isCheckmate) => {
+    console.log('Generating notation for move:', { piece, fromRow, fromCol, toRow, toCol, isCapture, isCheck, isCheckmate });
+    
     const files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
     const ranks = ['8', '7', '6', '5', '4', '3', '2', '1'];
     
@@ -78,6 +83,7 @@ const Chessboard = () => {
       notation += '+';
     }
     
+    console.log('Generated notation:', notation);
     return notation;
   };
 
@@ -94,9 +100,28 @@ const Chessboard = () => {
 
     // Set up scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xf0f0f0);
+    // Replace with white to gray gradient background
+    const topColor = new THREE.Color(0xffffff); // White at the top
+    const bottomColor = new THREE.Color(0xcccccc); // Medium gray at the bottom
+    scene.background = new THREE.Color(0xeeeeee); // Set solid light gray for devices that don't support gradients
+    
+    // Create gradient background
+    const canvas = document.createElement('canvas');
+    canvas.width = 2;
+    canvas.height = 2;
+    const context = canvas.getContext('2d');
+    const gradient = context.createLinearGradient(0, 0, 0, 2);
+    gradient.addColorStop(0, '#ffffff'); // White
+    gradient.addColorStop(1, '#cccccc'); // Medium gray
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 2, 2);
+    
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    scene.background = texture;
+    
     sceneRef.current = scene;
-    console.log('Scene created');
+    console.log('Scene created with white-to-gray gradient background');
 
     // Set up camera
     const camera = new THREE.PerspectiveCamera(
@@ -794,8 +819,6 @@ const Chessboard = () => {
   const placePieces = (board) => {
     if (!sceneRef.current) return;
     
-    console.log('Placing chess pieces on the board');
-    
     // Clear existing pieces
     piecesRef.current.forEach((mesh) => {
       sceneRef.current.remove(mesh);
@@ -803,14 +826,12 @@ const Chessboard = () => {
     piecesRef.current.clear();
     
     // Board measurements for proper piece placement
-    const boardSize = 8;  // 8x8 chess board
-    const squareSize = 2.0;  // Reduced from 2.2 to make pieces closer together
+    const boardSize = 8;
+    const squareSize = 2.0;
     const boardOffset = (boardSize * squareSize) / 2;
     
-    // Initialize the movement tracker with the board state - CRITICAL for correct functioning
-    console.log('Initializing movement tracker from current board state in placePieces');
+    // Initialize the movement tracker with the board state
     movementTracker.current = board.map(row => [...row]);
-    logMovementTracker(); // Log the state to verify
     
     // Create and place new pieces
     for (let row = 0; row < boardSize; row++) {
@@ -821,19 +842,18 @@ const Chessboard = () => {
           const pieceMesh = createChessPieceMesh(type, color);
           
           // Adjust scale based on the piece type
-          let pieceScale = 1.8;  // Increased from 1.4 to 1.8 (added 0.4)
+          let pieceScale = 1.8;
           
-          // Adjust scale for each piece type
           if (type === 'pawn') {
-            pieceScale = 1.6;  // Increased from 1.2 to 1.6 (added 0.4)
+            pieceScale = 1.6;
           } else if (type === 'knight' || type === 'bishop') {
-            pieceScale = 1.7;  // Increased from 1.3 to 1.7 (added 0.4)
+            pieceScale = 1.7;
           } else if (type === 'rook') {
-            pieceScale = 1.7;  // Increased from 1.3 to 1.7 (added 0.4)
+            pieceScale = 1.7;
           } else if (type === 'queen') {
-            pieceScale = 1.8;  // Increased from 1.4 to 1.8 (added 0.4)
+            pieceScale = 1.8;
           } else if (type === 'king') {
-            pieceScale = 1.8;  // Increased from 1.4 to 1.8 (added 0.4)
+            pieceScale = 1.8;
           }
           
           pieceMesh.scale.set(pieceScale, pieceScale, pieceScale);
@@ -842,7 +862,7 @@ const Chessboard = () => {
           const worldX = (col * squareSize) - boardOffset + (squareSize / 2);
           const worldZ = (row * squareSize) - boardOffset + (squareSize / 2);
           
-          // Position the piece with higher elevation to ensure it's on top of the board
+          // Position the piece
           pieceMesh.position.set(
             worldX,
             0.8, // Height above board
@@ -865,8 +885,6 @@ const Chessboard = () => {
         }
       }
     }
-    
-    console.log(`Placed ${piecesRef.current.size} chess pieces`);
     
     // Create the board click plane after placing pieces
     createBoardClickPlane();
@@ -1102,22 +1120,12 @@ const Chessboard = () => {
 
   // Handle piece movement
   const handlePieceMove = (fromRow, fromCol, toRow, toCol) => {
-    console.log(`MOVING PIECE: from (${fromRow},${fromCol}) to (${toRow},${toCol})`);
-    console.log(`Current player: ${currentPlayer}, Current player ref: ${currentPlayerRef.current}`);
-    
-    // Debug current state before move
-    console.log('Movement tracker BEFORE move:');
-    logMovementTracker();
-    
     // Get the piece being moved from the movement tracker
     const movingPiece = movementTracker.current[fromRow][fromCol];
     if (!movingPiece) {
-      console.error('No piece found at the starting position in movement tracker!');
-      
       // Try fallback to board state
       const boardPiece = boardState[fromRow][fromCol];
       if (boardPiece) {
-        console.log('Found piece in board state, updating movement tracker before move');
         // Update the movement tracker with the board state piece
         const newMovementTracker = movementTracker.current.map(row => [...row]);
         newMovementTracker[fromRow][fromCol] = boardPiece;
@@ -1126,20 +1134,13 @@ const Chessboard = () => {
         // Now try again with the updated movement tracker
         return handlePieceMove(fromRow, fromCol, toRow, toCol);
       }
-      
       return;
     }
-    
-    console.log('Moving piece:', movingPiece);
     
     // Verify that the piece being moved belongs to the current player
     if (movingPiece.color !== currentPlayerRef.current) {
-      console.error(`Cannot move ${movingPiece.color} piece - it's ${currentPlayerRef.current}'s turn`);
       return;
     }
-    
-    // SAFETY CHECK: Ensure we're using the local values, not the possibly-cleared ref
-    console.log('Selected piece ref when moving:', selectedPieceRef.current);
     
     // Get fresh valid moves using the movement tracker
     const currentValidMoves = getValidMoves(movementTracker.current, fromRow, fromCol);
@@ -1147,80 +1148,39 @@ const Chessboard = () => {
     // Check if the move is valid using the fresh moves
     const isValid = currentValidMoves.some(([row, col]) => row === toRow && col === toCol);
     
-    console.log('Move validation:', { 
-      from: [fromRow, fromCol], 
-      to: [toRow, toCol],
-      isValid,
-      validMoves: currentValidMoves,
-      pieceType: movingPiece?.type
-    });
-    
     if (!isValid) {
-      console.error('Invalid move attempted');
       return;
     }
     
-    console.log(`Moving piece from (${fromRow},${fromCol}) to (${toRow},${toCol})`);
-    
     // Check if this is a capture (if there's a piece at the destination)
     const isCapture = movementTracker.current[toRow][toCol] !== null;
-    if (isCapture) {
-      console.log('Capture detected!');
-    }
-    
-    // IMPORTANT: First clear the selection before we start moving
-    // This prevents issues with React state not being immediately updated
-    const capturedPieceData = isCapture ? movementTracker.current[toRow][toCol] : null;
     
     // Clear selection and highlights now (before we modify the board state)
-    // This prevents race conditions with the state updates
     clearHighlights(true);
     
     // Create a new board state after the move
     const newBoardState = makeMove(boardState, fromRow, fromCol, toRow, toCol);
     
-    // IMPORTANT: Update the board state immediately
+    // Update the board state
     setBoardState(newBoardState);
     
-    // IMPORTANT: Also update the movement tracker to reflect the actual piece positions
-    // This allows us to track piece positions independently from the boardState
+    // Update the movement tracker to reflect the actual piece positions
     const newMovementTracker = movementTracker.current.map(row => [...row]);
     newMovementTracker[toRow][toCol] = newMovementTracker[fromRow][fromCol];
     newMovementTracker[fromRow][fromCol] = null;
     movementTracker.current = newMovementTracker;
     
-    // Debug movement tracker after move
-    console.log('Movement tracker AFTER move:');
-    logMovementTracker();
-    
     // Directly move the piece on the board (visually)
     movePieceOnBoard(fromRow, fromCol, toRow, toCol, isCapture, () => {
-      console.log('Piece movement animation complete');
-      
-      // Note: We've already cleared selection before the board state update
-      // Don't clear again to avoid race conditions
-      // This line remains just for reference, but we've already cleared
-      // setSelectedPiece(null);
-      // selectedPieceRef.current = null;
-      // clearHighlights(true);
-      
-      // Switch player - IMPORTANT: We need to be careful with player state
-      // Use the currentPlayerRef as the source of truth, not the potentially stale currentPlayer state
+      // Switch player
       const currentTurn = currentPlayerRef.current;
       const nextPlayer = currentTurn === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
       
-      console.log(`Switching player from ${currentTurn} (ref) to ${nextPlayer}`);
-      console.log(`Previous currentPlayerRef value: ${currentPlayerRef.current}`);
-      
-      // IMPORTANT: Update the ref immediately before setting state
-      // This ensures the ref is always in sync with what we expect the state to be
+      // Update the ref immediately before setting state
       currentPlayerRef.current = nextPlayer;
       
-      // IMPORTANT: Also update the state to match the ref
-      // This synchronizes both values for proper interface updates
+      // Update the state to match the ref
       setCurrentPlayer(nextPlayer);
-      
-      console.log(`Updated currentPlayerRef to: ${currentPlayerRef.current}`);
       
       // Check for check, checkmate, or stalemate using the movement tracker
       const isInCheck = isKingInCheck(newMovementTracker, nextPlayer);
@@ -1250,20 +1210,25 @@ const Chessboard = () => {
         notation: moveNotation,
         nextPlayer: nextPlayer // Include the next player in move history for debugging
       };
-      console.log('Added move to history:', newMove);
       
       // Update both the ref and the state to prevent race conditions
       const updatedHistory = [...moveHistoryRef.current, newMove];
       moveHistoryRef.current = updatedHistory;
       setMoveHistory(updatedHistory);
+      console.log('Move history updated:', updatedHistory.map(m => `${m.player} ${m.piece.type} ${m.notation}`));
       
       // Update game status
       if (isInCheckmate) {
-        setGameStatus(`Checkmate! ${currentTurn === COLORS.WHITE ? 'White' : 'Black'} wins!`);
+        const winnerColor = currentTurn === COLORS.WHITE ? 'White' : 'Black';
+        setGameStatus(`Checkmate! ${winnerColor} wins!`);
+        setWinner(winnerColor);
+        setShowWinnerPopup(true);
       } else if (isInCheck) {
         setGameStatus(`${nextPlayer === COLORS.WHITE ? 'White' : 'Black'} is in check!`);
       } else if (isStalemate(newMovementTracker, nextPlayer)) {
         setGameStatus('Stalemate! The game is a draw.');
+        setWinner('Draw');
+        setShowWinnerPopup(true);
       } else {
         setGameStatus(null);
       }
@@ -1274,15 +1239,12 @@ const Chessboard = () => {
   const movePieceOnBoard = (fromRow, fromCol, toRow, toCol, isCapture, onComplete) => {
     const pieceMesh = piecesRef.current.get(`${fromRow}-${fromCol}`);
     if (!pieceMesh || !sceneRef.current) {
-      console.error('Could not find piece to move');
       if (onComplete) onComplete();
       return;
     }
     
-    console.log('MOVING PIECE MESH on board');
-    
-    const boardSize = 8;  // 8x8 chess board
-    const squareSize = 2.0;  // Reduced from 2.2 to make pieces closer together
+    const boardSize = 8;
+    const squareSize = 2.0;
     const boardOffset = (boardSize * squareSize) / 2;
     
     // Calculate destination position
@@ -1293,19 +1255,15 @@ const Chessboard = () => {
     if (isCapture) {
       const capturedPiece = piecesRef.current.get(`${toRow}-${toCol}`);
       if (capturedPiece) {
-        console.log('Removing captured piece from scene');
         sceneRef.current.remove(capturedPiece);
         piecesRef.current.delete(`${toRow}-${toCol}`);
       }
     }
     
-    console.log(`Moving piece from (${pieceMesh.position.x}, ${pieceMesh.position.z}) to (${destX}, ${destZ})`);
-    
     // Force-update piece position
     pieceMesh.position.set(destX, pieceMesh.position.y, destZ);
     
     // Update userData and references for the piece and all its children
-    // This is critical to ensure click detection works properly after moves
     pieceMesh.userData.row = toRow;
     pieceMesh.userData.col = toCol;
     
@@ -1321,11 +1279,6 @@ const Chessboard = () => {
     // Update the map references
     piecesRef.current.delete(`${fromRow}-${fromCol}`);
     piecesRef.current.set(`${toRow}-${toCol}`, pieceMesh);
-    
-    console.log('Movement complete - updated userData for piece and all children');
-    
-    // Debug verification after move
-    console.log('Piece userData after move:', pieceMesh.userData);
     
     if (onComplete) onComplete();
   };
@@ -1577,93 +1530,120 @@ const Chessboard = () => {
     }, 700); // Remove after 700ms
   };
 
+  /**
+   * Game end and restart functionality
+   * - Displays a winner popup when checkmate or stalemate occurs
+   * - Shows winner (White/Black) or indicates a draw
+   * - Provides a "Play Again" button to reset the game 
+   * - Resets board state, pieces, and player turn
+   */
+  const restartGame = () => {
+    console.log('Restarting game...');
+    
+    // Reset board state and tracker
+    const initialBoard = createInitialBoard();
+    setBoardState(initialBoard);
+    boardStateRef.current = initialBoard;
+    movementTracker.current = initialBoard.map(row => [...row]);
+    
+    // Reset game state
+    setCurrentPlayer(COLORS.WHITE);
+    currentPlayerRef.current = COLORS.WHITE;
+    selectedPieceRef.current = null;
+    setSelectedPiece(null);
+    setValidMoves([]);
+    clearHighlights(true);
+    setGameStatus(null);
+    
+    // Ensure move history is properly cleared
+    moveHistoryRef.current = [];
+    setMoveHistory([]);
+    console.log('Move history cleared', moveHistoryRef.current, moveHistory);
+    
+    // Close popup
+    setShowWinnerPopup(false);
+    setWinner(null);
+    
+    // Recreate pieces
+    if (sceneRef.current) {
+      piecesRef.current.forEach(piece => sceneRef.current.remove(piece));
+      piecesRef.current.clear();
+    }
+    placePieces(initialBoard);
+    
+    console.log('Game restart complete');
+  };
+
+  useEffect(() => {
+    console.log('Move history state changed:', moveHistory);
+  }, [moveHistory]);
+
   return (
     <div>
       <div 
         ref={mountRef} 
-        style={{ 
-          width: '100%', 
-          height: '100vh',
-          position: 'absolute',
-          top: 0,
-          left: 0 
-        }} 
+        className="w-full h-screen absolute top-0 left-0"
       />
       {gameStatus && (
-        <div style={{
-          position: 'absolute',
-          top: '20px',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: 'rgba(0, 0, 0, 0.7)',
-          color: 'white',
-          padding: '10px 20px',
-          borderRadius: '5px',
-          fontWeight: 'bold',
-          zIndex: 1000
-        }}>
+        <div className="absolute top-5 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-5 py-2.5 rounded-md font-bold z-10">
           {gameStatus}
         </div>
       )}
-      <div style={{
-        position: 'absolute',
-        bottom: '20px',
-        left: '20px',
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        color: 'white',
-        padding: '10px 20px',
-        borderRadius: '5px',
-        zIndex: 1000
-      }}>
+      {showWinnerPopup && (
+        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-20">
+          <div className="bg-white p-5 rounded-lg text-center shadow-lg max-w-md">
+            <h2 className="text-2xl font-bold mb-4">
+              {winner === 'Draw' ? 'Game Over - Draw!' : `${winner} Wins!`}
+            </h2>
+            <button 
+              onClick={restartGame}
+              className="bg-green-500 text-white py-2.5 px-5 rounded font-bold hover:bg-green-600 transition-colors"
+            >
+              Play Again
+            </button>
+          </div>
+        </div>
+      )}
+      <div className="absolute bottom-5 left-5 bg-black/70 text-white px-5 py-2.5 rounded-md z-10">
         Current Player: {currentPlayer === COLORS.WHITE ? 'White' : 'Black'}
       </div>
       
       {/* Move History Panel */}
-      <div style={{
-        position: 'absolute',
-        top: '60px',
-        right: '20px',
-        backgroundColor: 'rgba(245, 245, 245, 0.9)',
-        boxShadow: '0 0 10px rgba(0, 0, 0, 0.2)',
-        padding: '10px',
-        borderRadius: '5px',
-        maxHeight: '70vh',
-        overflowY: 'auto',
-        zIndex: 1000,
-        width: '200px'
-      }}>
-        <h3 style={{ textAlign: 'center', margin: '0 0 10px 0' }}>Move History</h3>
-        <div style={{ fontFamily: 'monospace' }}>
-          {/* Group moves by pairs (white and black) for display */}
-          {Array.from({ length: Math.ceil(moveHistory.length / 2) }, (_, i) => {
-            const whiteMove = moveHistory[i * 2];
-            const blackMove = moveHistory[i * 2 + 1];
-            return (
-              <div key={i} style={{ marginBottom: '3px' }}>
-                {whiteMove && (
-                  <span
-                    style={{ 
-                      color: whiteMove.isCapture ? '#c00' : 'black',
-                      fontWeight: whiteMove.isCheck || whiteMove.isCheckmate ? 'bold' : 'normal',
-                      marginRight: '5px'
-                    }}
-                  >
-                    {`${i + 1}. ${whiteMove.notation}`}
-                  </span>
-                )}
-                {blackMove && (
-                  <span
-                    style={{ 
-                      color: blackMove.isCapture ? '#c00' : 'black',
-                      fontWeight: blackMove.isCheck || blackMove.isCheckmate ? 'bold' : 'normal',
-                    }}
-                  >
-                    {blackMove.notation}
-                  </span>
-                )}
-              </div>
-            );
-          })}
+      <div className="absolute top-16 right-5 bg-gray-800/90 shadow-md p-2.5 rounded-md max-h-[70vh] overflow-y-auto z-10 w-52">
+        <h3 className="text-center font-semibold mb-2.5 text-gray-100">Move History</h3>
+        <div className="font-mono">
+          {moveHistory.length === 0 ? (
+            <div className="text-gray-400 text-center">No moves yet</div>
+          ) : (
+            <div>
+              {/* Group moves in pairs by turn number */}
+              {Array.from({ length: Math.ceil(moveHistory.length / 2) }, (_, i) => {
+                // Get white and black moves for this turn
+                const whiteMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.WHITE);
+                const blackMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.BLACK);
+                
+                return (
+                  <div key={i} className="mb-0.5 flex">
+                    <span className="text-gray-400 mr-1">{i + 1}.</span>
+                    {whiteMove && (
+                      <span 
+                        className={`mr-2 ${whiteMove.isCapture ? 'text-red-400' : 'text-gray-200'} ${whiteMove.isCheck || whiteMove.isCheckmate ? 'font-bold' : 'font-normal'}`}
+                      >
+                        {whiteMove.notation}
+                      </span>
+                    )}
+                    {blackMove && (
+                      <span 
+                        className={`${blackMove.isCapture ? 'text-red-400' : 'text-gray-200'} ${blackMove.isCheck || blackMove.isCheckmate ? 'font-bold' : 'font-normal'}`}
+                      >
+                        {blackMove.notation}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>
