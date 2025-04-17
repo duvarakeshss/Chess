@@ -185,7 +185,6 @@ const Chessboard = () => {
     console.log('Attempting to load GLTF model...');
     const loader = new GLTFLoader();
     
-    // Try loading from different possible paths
     const loadModel = (index) => {
       if (index >= modelPaths.length) {
         console.error('Failed to load model from any path. Using programmatic board instead.');
@@ -248,14 +247,14 @@ const Chessboard = () => {
       scene.add(boardGroup);
 
       const boardSize = 8;
-      const squareSize = 2.0; // Reduced from 2.2 to make pieces closer together
+      const squareSize = 2.0; 
       const boardOffset = (boardSize * squareSize) / 2;
       
       // Create squares
       for (let x = 0; x < boardSize; x++) {
         for (let z = 0; z < boardSize; z++) {
           const isWhite = (x + z) % 2 === 0;
-          // Using more natural wood-like colors
+          
           const color = isWhite ? 0xf5e7d2 : 0x8b5a2b; 
           
           const geometry = new THREE.BoxGeometry(squareSize, 0.2, squareSize);
@@ -283,7 +282,7 @@ const Chessboard = () => {
       // Add border around the board
       const borderGeometry = new THREE.BoxGeometry(boardSize * squareSize + 0.5, 0.3, boardSize * squareSize + 0.5);
       const borderMaterial = new THREE.MeshStandardMaterial({ 
-        color: 0x5d3a1a, // Darker wood tone for the border
+        color: 0x5d3a1a,
         roughness: 0.6,
         metalness: 0.2
       });
@@ -942,13 +941,13 @@ const Chessboard = () => {
     console.log('Highlighting', moves.length, 'valid moves');
     
     // Clear previous highlights first - BUT DO NOT CLEAR SELECTED PIECE
-    // We're calling this AFTER setting the selected piece, so we must
+    // Calling this AFTER setting the selected piece
     // keep the selected piece information intact
     clearHighlights(false); // Don't clear the selected piece state!
     
     const newHighlightMeshes = [];
     const boardSize = 8;  // 8x8 chess board
-    const squareSize = 2.0;  // Reduced from 2.2 to make pieces closer together
+    const squareSize = 2.0;  
     const boardOffset = (boardSize * squareSize) / 2;
     
     // Helper function to create 3D highlight indicators
