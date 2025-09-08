@@ -14,6 +14,7 @@ import {
   COLORS,
   PIECES 
 } from './chesslogic';
+import { findBestMove } from './ChessAI';
 
 const Chessboard = () => {
   const mountRef = useRef(null);
@@ -37,6 +38,12 @@ const Chessboard = () => {
   // Add winner popup state
   const [showWinnerPopup, setShowWinnerPopup] = useState(false);
   const [winner, setWinner] = useState(null);
+  
+  // Add AI player state
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [aiColor, setAiColor] = useState(COLORS.BLACK);
+  const [aiDifficulty, setAiDifficulty] = useState('medium');
+  const [isAiThinking, setIsAiThinking] = useState(false);
   
   // Raycaster for detecting clicks on the board
   const raycaster = useRef(new THREE.Raycaster());
@@ -790,6 +797,14 @@ const Chessboard = () => {
     // Log the initial state to verify
     console.log('Initial movement tracker state:', movementTracker.current);
   }, []);
+  
+  // Effect to trigger AI move when it's AI's turn
+  useEffect(() => {
+    // If AI is enabled and it's AI's turn, make a move
+    if (aiEnabled && currentPlayer === aiColor && !showWinnerPopup) {
+      makeAiMove();
+    }
+  }, [aiEnabled, aiColor, currentPlayer]);
 
   // Log movement tracker whenever it changes
   const logMovementTracker = () => {
@@ -1233,38 +1248,126 @@ const Chessboard = () => {
         setGameStatus(null);
       }
       
-      // Display toast notification for the move
+      // Display toast notification for the move with improved styling
       const colorText = currentTurn === COLORS.WHITE ? 'White' : 'Black';
+      const pieceIcon = getPieceIcon(movingPiece.type);
       
       // Show appropriate toast based on game state
       if (isInCheckmate) {
-        toast.success(`${colorText} wins by checkmate! ${moveNotation}`, {
+        toast.success(`${colorText} wins by checkmate!`, {
           icon: '♔',
+          duration: 4000,
           style: {
-            borderRadius: '10px',
-            background: '#333',
+            borderRadius: '12px',
+            background: '#222',
             color: '#fff',
+            padding: '12px 16px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            fontSize: '16px',
+            fontWeight: '500',
           },
         });
       } else if (isInCheck) {
-        toast(`${colorText} moves: ${moveNotation} - Check!`, {
-          icon: '♖',
+        toast(`${pieceIcon} ${moveNotation} - Check!`, {
+          icon: '⚠️',
+          duration: 3000,
           style: {
-            borderRadius: '10px',
-            background: '#333',
+            borderRadius: '12px',
+            background: '#d32f2f',
             color: '#fff',
+            padding: '12px 16px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            fontSize: '16px',
+            fontWeight: '500',
+          },
+        });
+      } else if (isCapture) {
+        toast(`${pieceIcon} ${moveNotation}`, {
+          icon: '✖️',
+          duration: 2500,
+          style: {
+            borderRadius: '12px',
+            background: '#444',
+            color: '#fff',
+            padding: '12px 16px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            fontSize: '16px',
+            fontWeight: '500',
           },
         });
       } else {
-        toast(`${colorText} moves: ${moveNotation}`, {
+        toast(`${pieceIcon} ${moveNotation}`, {
+          duration: 2000,
           style: {
-            borderRadius: '10px',
+            borderRadius: '12px',
             background: '#333',
             color: '#fff',
+            padding: '10px 16px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+            fontSize: '16px',
           },
         });
       }
+      
+      // If AI is enabled and it's AI's turn, make an AI move
+      if (aiEnabled && nextPlayer === aiColor && !isInCheckmate && !isStalemate(newMovementTracker, nextPlayer)) {
+        makeAiMove();
+      }
     });
+  };
+  
+  // Helper function to get chess piece icon for toast notifications
+  const getPieceIcon = (pieceType) => {
+    switch (pieceType) {
+      case PIECES.PAWN: return '♟';
+      case PIECES.ROOK: return '♜';
+      case PIECES.KNIGHT: return '♞';
+      case PIECES.BISHOP: return '♝';
+      case PIECES.QUEEN: return '♛';
+      case PIECES.KING: return '♚';
+      default: return '♙';
+    }
+  };
+  
+  // Make AI move
+  const makeAiMove = () => {
+    setIsAiThinking(true);
+    
+    // Use setTimeout to avoid blocking the UI
+    setTimeout(() => {
+      try {
+        // Find the best move using our AI
+        const bestMove = findBestMove(movementTracker.current, aiColor, aiDifficulty);
+        
+        if (bestMove) {
+          const [fromRow, fromCol] = bestMove.from;
+          const [toRow, toCol] = bestMove.to;
+          
+          // Execute the move
+          handlePieceMove(fromRow, fromCol, toRow, toCol);
+        } else {
+          console.error('AI could not find a valid move');
+          toast.error('AI could not find a valid move', {
+            style: {
+              borderRadius: '12px',
+              background: '#d32f2f',
+              color: '#fff',
+            },
+          });
+        }
+      } catch (error) {
+        console.error('Error in AI move calculation:', error);
+        toast.error('Error in AI move calculation', {
+          style: {
+            borderRadius: '12px',
+            background: '#d32f2f',
+            color: '#fff',
+          },
+        });
+      } finally {
+        setIsAiThinking(false);
+      }
+    }, 500); // Small delay to show thinking state
   };
 
   // Move piece on the 3D board (visually)
@@ -1603,12 +1706,57 @@ const Chessboard = () => {
     }
     placePieces(initialBoard);
     
+    // Reset AI thinking state
+    setIsAiThinking(false);
+    
+    // If AI is enabled and AI plays white, trigger AI move
+    if (aiEnabled && aiColor === COLORS.WHITE) {
+      setTimeout(() => makeAiMove(), 1000);
+    }
+    
     console.log('Game restart complete');
+    
+    // Show toast notification for game restart
+    toast.success('Game restarted!', {
+      icon: '🔄',
+      duration: 2000,
+      style: {
+        borderRadius: '12px',
+        background: '#333',
+        color: '#fff',
+        padding: '10px 16px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+        fontSize: '16px',
+      },
+    });
   };
 
   useEffect(() => {
     console.log('Move history state changed:', moveHistory);
   }, [moveHistory]);
+
+  // Toggle AI player
+  const toggleAI = () => {
+    setAiEnabled(!aiEnabled);
+    if (!aiEnabled && currentPlayer === aiColor) {
+      // If we're enabling AI and it's already AI's turn, trigger a move
+      setTimeout(() => makeAiMove(), 500);
+    }
+  };
+  
+  // Change AI color
+  const changeAIColor = (color) => {
+    setAiColor(color);
+    // If AI is enabled and it's already this color's turn, trigger a move
+    if (aiEnabled && currentPlayer === color) {
+      setTimeout(() => makeAiMove(), 500);
+    }
+  };
+  
+  // Change AI difficulty
+  const changeAIDifficulty = (difficulty) => {
+    setAiDifficulty(difficulty);
+  };
 
   return (
     <div>
@@ -1617,13 +1765,13 @@ const Chessboard = () => {
         className="w-full h-screen absolute top-0 left-0"
       />
       {gameStatus && (
-        <div className="absolute top-5 left-1/2 transform -translate-x-1/2 bg-black/70 text-white px-5 py-2.5 rounded-md font-bold z-10">
+        <div className="absolute top-5 left-1/2 transform -translate-x-1/2 bg-black/80 text-white px-5 py-2.5 rounded-md font-bold z-10 backdrop-blur-sm">
           {gameStatus}
         </div>
       )}
       {showWinnerPopup && (
-        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-20">
-          <div className="bg-white p-5 rounded-lg text-center shadow-lg max-w-md">
+        <div className="fixed inset-0 bg-black/70 flex justify-center items-center z-20 backdrop-blur-sm">
+          <div className="bg-white p-6 rounded-lg text-center shadow-lg max-w-md">
             <h2 className="text-2xl font-bold mb-4">
               {winner === 'Draw' ? 'Game Over - Draw!' : `${winner} Wins!`}
             </h2>
@@ -1636,13 +1784,77 @@ const Chessboard = () => {
           </div>
         </div>
       )}
-      <div className="absolute bottom-5 left-5 bg-black/70 text-white px-5 py-2.5 rounded-md z-10">
-        Current Player: {currentPlayer === COLORS.WHITE ? 'White' : 'Black'}
+      
+      {/* Current Player Indicator */}
+      <div className="absolute bottom-5 left-5 bg-black/80 text-white px-5 py-3 rounded-md z-10 backdrop-blur-sm flex items-center">
+        <div className={`w-3 h-3 rounded-full mr-2 ${currentPlayer === COLORS.WHITE ? 'bg-white' : 'bg-black border border-white'}`}></div>
+        <span>Current Player: {currentPlayer === COLORS.WHITE ? 'White' : 'Black'}</span>
+        {isAiThinking && currentPlayer === aiColor && (
+          <span className="ml-2 animate-pulse">AI thinking...</span>
+        )}
+      </div>
+      
+      {/* AI Controls Panel */}
+      <div className="absolute bottom-5 right-5 bg-black/80 text-white p-4 rounded-md z-10 backdrop-blur-sm w-64">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="font-semibold">AI Player</h3>
+          <label className="relative inline-flex items-center cursor-pointer">
+            <input 
+              type="checkbox" 
+              className="sr-only peer" 
+              checked={aiEnabled}
+              onChange={toggleAI}
+            />
+            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+          </label>
+        </div>
+        
+        <div className="mb-3">
+          <p className="mb-1 text-sm">AI Color:</p>
+          <div className="flex space-x-2">
+            <button 
+              onClick={() => changeAIColor(COLORS.BLACK)}
+              className={`flex-1 py-1 px-2 rounded ${aiColor === COLORS.BLACK ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400'}`}
+            >
+              Black
+            </button>
+            <button 
+              onClick={() => changeAIColor(COLORS.WHITE)}
+              className={`flex-1 py-1 px-2 rounded ${aiColor === COLORS.WHITE ? 'bg-gray-200 text-black' : 'bg-gray-800 text-gray-400'}`}
+            >
+              White
+            </button>
+          </div>
+        </div>
+        
+        <div>
+          <p className="mb-1 text-sm">Difficulty:</p>
+          <div className="flex space-x-1">
+            <button 
+              onClick={() => changeAIDifficulty('easy')}
+              className={`flex-1 py-1 px-1 rounded text-sm ${aiDifficulty === 'easy' ? 'bg-green-500' : 'bg-gray-700'}`}
+            >
+              Easy
+            </button>
+            <button 
+              onClick={() => changeAIDifficulty('medium')}
+              className={`flex-1 py-1 px-1 rounded text-sm ${aiDifficulty === 'medium' ? 'bg-yellow-500 text-black' : 'bg-gray-700'}`}
+            >
+              Medium
+            </button>
+            <button 
+              onClick={() => changeAIDifficulty('hard')}
+              className={`flex-1 py-1 px-1 rounded text-sm ${aiDifficulty === 'hard' ? 'bg-red-500' : 'bg-gray-700'}`}
+            >
+              Hard
+            </button>
+          </div>
+        </div>
       </div>
       
       {/* Move History Panel */}
-      <div className="absolute top-16 right-5 bg-gray-800/90 shadow-md p-2.5 rounded-md max-h-[70vh] overflow-y-auto z-10 w-52">
-        <h3 className="text-center font-semibold mb-2.5 text-gray-100">Move History</h3>
+      <div className="absolute top-5 right-5 bg-black/80 shadow-md p-4 rounded-md max-h-[70vh] overflow-y-auto z-10 w-64 backdrop-blur-sm">
+        <h3 className="text-center font-semibold mb-3 text-gray-100 border-b border-gray-700 pb-2">Move History</h3>
         <div className="font-mono">
           {moveHistory.length === 0 ? (
             <div className="text-gray-400 text-center">No moves yet</div>
@@ -1655,22 +1867,24 @@ const Chessboard = () => {
                 const blackMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.BLACK);
                 
                 return (
-                  <div key={i} className="mb-0.5 flex">
-                    <span className="text-gray-400 mr-1">{i + 1}.</span>
+                  <div key={i} className="mb-1 flex">
+                    <span className="text-gray-400 mr-2 w-6 text-right">{i + 1}.</span>
+                    <div className="flex-1 grid grid-cols-2 gap-2">
                     {whiteMove && (
                       <span 
-                        className={`mr-2 ${whiteMove.isCapture ? 'text-red-400' : 'text-gray-200'} ${whiteMove.isCheck || whiteMove.isCheckmate ? 'font-bold' : 'font-normal'}`}
+                          className={`${whiteMove.isCapture ? 'text-red-400' : 'text-gray-200'} ${whiteMove.isCheck || whiteMove.isCheckmate ? 'font-bold' : 'font-normal'}`}
                       >
-                        {whiteMove.notation}
+                          {getPieceIcon(whiteMove.piece.type)} {whiteMove.notation}
                       </span>
                     )}
                     {blackMove && (
                       <span 
                         className={`${blackMove.isCapture ? 'text-red-400' : 'text-gray-200'} ${blackMove.isCheck || blackMove.isCheckmate ? 'font-bold' : 'font-normal'}`}
                       >
-                        {blackMove.notation}
+                          {getPieceIcon(blackMove.piece.type)} {blackMove.notation}
                       </span>
                     )}
+                    </div>
                   </div>
                 );
               })}
