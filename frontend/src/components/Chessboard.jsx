@@ -41,7 +41,7 @@ const Chessboard = () => {
   
   // Add AI player state
   const [aiEnabled, setAiEnabled] = useState(false);
-  const [aiColor, setAiColor] = useState(COLORS.BLACK);
+  const [aiColor] = useState(COLORS.BLACK); // AI is always black
   const [aiDifficulty, setAiDifficulty] = useState('medium');
   const [isAiThinking, setIsAiThinking] = useState(false);
   
@@ -106,30 +106,152 @@ const Chessboard = () => {
     // Clear any previous content
     mountRef.current.innerHTML = '';
 
-    // Set up scene
+    // Set up scene with animated colorful background
     const scene = new THREE.Scene();
-    // Replace with white to gray gradient background
-    const topColor = new THREE.Color(0xffffff); // White at the top
-    const bottomColor = new THREE.Color(0xcccccc); // Medium gray at the bottom
-    scene.background = new THREE.Color(0xeeeeee); // Set solid light gray for devices that don't support gradients
     
-    // Create gradient background
+    // Create animated background with multiple colors
     const canvas = document.createElement('canvas');
-    canvas.width = 2;
-    canvas.height = 2;
+    canvas.width = 512;
+    canvas.height = 512;
     const context = canvas.getContext('2d');
-    const gradient = context.createLinearGradient(0, 0, 0, 2);
-    gradient.addColorStop(0, '#ffffff'); // White
-    gradient.addColorStop(1, '#cccccc'); // Medium gray
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, 2, 2);
+    
+    // Sophisticated color palette with better aesthetics
+    const colors = [
+      { r: 67, g: 56, b: 202, name: 'Royal Purple' },     // Deep purple
+      { r: 139, g: 69, b: 19, name: 'Rich Brown' },       // Warm brown
+      { r: 30, g: 64, b: 175, name: 'Navy Blue' },        // Deep blue
+      { r: 185, g: 28, b: 28, name: 'Crimson' },          // Deep red
+      { r: 22, g: 101, b: 52, name: 'Forest Green' },     // Deep green
+      { r: 120, g: 53, b: 15, name: 'Burnt Orange' },     // Warm orange
+      { r: 75, g: 85, b: 99, name: 'Slate Gray' },        // Sophisticated gray
+      { r: 124, g: 58, b: 237, name: 'Violet' }           // Rich violet
+    ];
+    
+    let time = 0;
+    let currentColorIndex = 0;
+    let nextColorIndex = 1;
+    
+    const updateBackground = () => {
+      time += 0.008; // Slower, more elegant animation
+      
+      // Clear canvas with subtle fade effect
+      context.fillStyle = 'rgba(0, 0, 0, 0.05)';
+      context.fillRect(0, 0, 512, 512);
+      
+      // Smooth color transition with easing
+      const t = (Math.sin(time * 0.5) + 1) / 2; // Slower, smoother transition
+      const currentColor = colors[currentColorIndex];
+      const nextColor = colors[nextColorIndex];
+      
+      // Enhanced color interpolation with better blending
+      const easeInOut = t * t * (3 - 2 * t); // Smooth easing function
+      const r = Math.floor(currentColor.r + (nextColor.r - currentColor.r) * easeInOut);
+      const g = Math.floor(currentColor.g + (nextColor.g - currentColor.g) * easeInOut);
+      const b = Math.floor(currentColor.b + (nextColor.b - currentColor.b) * easeInOut);
+      
+      // Create sophisticated multi-layer gradient
+      const centerX = 256 + Math.sin(time * 0.1) * 20;
+      const centerY = 256 + Math.cos(time * 0.1) * 20;
+      
+      // Main gradient
+      const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 400);
+      gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.9)`);
+      gradient.addColorStop(0.4, `rgba(${Math.floor(r * 0.7)}, ${Math.floor(g * 0.7)}, ${Math.floor(b * 0.7)}, 0.8)`);
+      gradient.addColorStop(0.8, `rgba(${Math.floor(r * 0.4)}, ${Math.floor(g * 0.4)}, ${Math.floor(b * 0.4)}, 0.6)`);
+      gradient.addColorStop(1, `rgba(${Math.floor(r * 0.2)}, ${Math.floor(g * 0.2)}, ${Math.floor(b * 0.2)}, 0.4)`);
+      
+      context.fillStyle = gradient;
+      context.fillRect(0, 0, 512, 512);
+      
+      // Add elegant floating orbs with glow effect
+      for (let i = 0; i < 15; i++) {
+        const angle = (time * 0.3 + i * 0.4) % (Math.PI * 2);
+        const radius = 150 + Math.sin(time * 0.2 + i) * 50;
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius;
+        const size = 3 + Math.sin(time * 1.5 + i) * 2;
+        const alpha = 0.4 + Math.sin(time * 2 + i) * 0.3;
+        
+        // Create glow effect
+        const glowGradient = context.createRadialGradient(x, y, 0, x, y, size * 3);
+        glowGradient.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
+        glowGradient.addColorStop(0.5, `rgba(255, 255, 255, ${alpha * 0.5})`);
+        glowGradient.addColorStop(1, `rgba(255, 255, 255, 0)`);
+        
+        context.fillStyle = glowGradient;
+        context.beginPath();
+        context.arc(x, y, size * 3, 0, Math.PI * 2);
+        context.fill();
+        
+        // Core orb
+        context.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+        context.beginPath();
+        context.arc(x, y, size, 0, Math.PI * 2);
+        context.fill();
+      }
+      
+      // Add sophisticated geometric patterns
+      for (let i = 0; i < 6; i++) {
+        const angle = time * 0.05 + i * Math.PI / 3;
+        const x = centerX + Math.cos(angle) * 250;
+        const y = centerY + Math.sin(angle) * 250;
+        const size = 8 + Math.sin(time * 0.6 + i) * 4;
+        const rotation = time * 0.08 + i;
+        
+        context.save();
+        context.translate(x, y);
+        context.rotate(rotation);
+        
+        // Create diamond shape
+        context.fillStyle = `rgba(255, 255, 255, 0.08)`;
+        context.beginPath();
+        context.moveTo(0, -size);
+        context.lineTo(size, 0);
+        context.lineTo(0, size);
+        context.lineTo(-size, 0);
+        context.closePath();
+        context.fill();
+        
+        // Add subtle border
+        context.strokeStyle = `rgba(255, 255, 255, 0.15)`;
+        context.lineWidth = 1;
+        context.stroke();
+        
+        context.restore();
+      }
+      
+      // Add subtle noise texture for depth
+      const imageData = context.getImageData(0, 0, 512, 512);
+      const data = imageData.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const noise = (Math.random() - 0.5) * 2; // Very subtle noise
+        data[i] = Math.max(0, Math.min(255, data[i] + noise));     // Red
+        data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise)); // Green
+        data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise)); // Blue
+      }
+      context.putImageData(imageData, 0, 0);
+      
+      // Update texture
+      texture.needsUpdate = true;
+      
+      // Change color every 4 seconds for more elegant transitions
+      if (Math.floor(time * 0.25) > Math.floor((time - 0.008) * 0.25)) {
+        currentColorIndex = nextColorIndex;
+        nextColorIndex = (nextColorIndex + 1) % colors.length;
+      }
+      
+      requestAnimationFrame(updateBackground);
+    };
     
     const texture = new THREE.CanvasTexture(canvas);
     texture.mapping = THREE.EquirectangularReflectionMapping;
     scene.background = texture;
     
+    // Start the animation
+    updateBackground();
+    
     sceneRef.current = scene;
-    console.log('Scene created with white-to-gray gradient background');
+    console.log('Scene created with animated colorful background');
 
     // Set up camera
     const camera = new THREE.PerspectiveCamera(
@@ -965,8 +1087,8 @@ const Chessboard = () => {
     const squareSize = 2.0;  
     const boardOffset = (boardSize * squareSize) / 2;
     
-    // Helper function to create 3D highlight indicators
-    const create3DHighlight = (row, col, color, isSelectedPiece = false, isCapture = false) => {
+    // Helper function to create chess-style move indicators
+    const createChessHighlight = (row, col, color, isSelectedPiece = false, isCapture = false) => {
       // Calculate position to exactly match board squares
       const worldX = (col * squareSize) - boardOffset + (squareSize / 2);
       const worldZ = (row * squareSize) - boardOffset + (squareSize / 2);
@@ -982,89 +1104,102 @@ const Chessboard = () => {
         isCapture
       };
       
-      // Define indicator dimensions
-      const indicatorHeight = 1.0; // Taller to be visible like chess pieces
-      const indicatorRadius = 0.4; // INCREASED from 0.3 to make easier to click
-      
-      // Create four indicator towers at the corners of the square
-      const cornerOffset = (squareSize / 2) - (indicatorRadius / 2);
-      
-      // Create corners similar to chess pieces
-      const corners = [
-        { x: cornerOffset, z: cornerOffset },     // NE
-        { x: -cornerOffset, z: cornerOffset },    // NW
-        { x: cornerOffset, z: -cornerOffset },    // SE
-        { x: -cornerOffset, z: -cornerOffset }    // SW
-      ];
-      
-      corners.forEach((corner, index) => {
-        // Use cylinder geometry similar to chess pieces
-        const towerGeometry = new THREE.CylinderGeometry(
-          indicatorRadius * 0.8, // top radius (slightly tapered)
-          indicatorRadius,      // bottom radius
-          indicatorHeight,      // height
-          16                    // segments
+      if (isSelectedPiece) {
+        // For selected piece, create a border highlight
+        const borderGeometry = new THREE.RingGeometry(
+          squareSize * 0.4, // inner radius
+          squareSize * 0.48, // outer radius
+          32 // segments
         );
         
-        const towerMaterial = new THREE.MeshStandardMaterial({
+        const borderMaterial = new THREE.MeshBasicMaterial({
           color: color,
           transparent: true,
           opacity: 0.8,
-          metalness: 0.5,
-          roughness: 0.5
+          side: THREE.DoubleSide
         });
         
-        const tower = new THREE.Mesh(towerGeometry, towerMaterial);
-        
-        // Position the tower at corner, half height up from the board
-        tower.position.set(
-          corner.x,
-          indicatorHeight / 2, // Position from bottom of cylinder
-          corner.z
-        );
-        
-        tower.userData = {
-          type: 'highlight_tower',
-          cornerIndex: index,
+        const border = new THREE.Mesh(borderGeometry, borderMaterial);
+        border.rotation.x = -Math.PI / 2; // Rotate to be horizontal
+        border.position.y = 0.15; // Just above the board
+        border.userData = {
+          type: 'selected_border',
           row,
           col,
-          isSelectedPiece,
-          isCapture
+          isSelectedPiece: true
         };
         
-        highlightGroup.add(tower);
-      });
-      
-      // Create a LARGER thin 3D box for the base highlight instead of a plane
-      // This ensures it's visible from all angles and EASIER TO CLICK
-      const baseGeometry = new THREE.BoxGeometry(squareSize - 0.05, 0.1, squareSize - 0.05); // Increased height
-      
-      // Check if square is light or dark (chess board alternating pattern)
-      const isLightSquare = (row + col) % 2 === 0;
-      
-      // Adjust color based on whether it's a light or dark square
-      const adjustedColor = new THREE.Color(color);
-      
-      // Create a material that will blend with the underlying square color
-      const baseMaterial = new THREE.MeshStandardMaterial({ // Changed from MeshBasicMaterial
-        color: adjustedColor,
-        transparent: true,
-        opacity: 0.65,
-        metalness: 0.3,
-        roughness: 0.7
-      });
-      
-      const baseHighlight = new THREE.Mesh(baseGeometry, baseMaterial);
-      baseHighlight.position.set(0, 0.11, 0); // Just above the board surface
-      baseHighlight.userData = {
-        type: 'highlight_base',
-        row,
-        col,
-        isSelectedPiece,
-        isCapture
-      };
-      
-      highlightGroup.add(baseHighlight);
+        highlightGroup.add(border);
+      } else if (isCapture) {
+        // For captures, create a red circle with X
+        const circleGeometry = new THREE.CircleGeometry(squareSize * 0.3, 32);
+        const circleMaterial = new THREE.MeshBasicMaterial({
+          color: 0xff0000,
+          transparent: true,
+          opacity: 0.7,
+          side: THREE.DoubleSide
+        });
+        
+        const circle = new THREE.Mesh(circleGeometry, circleMaterial);
+        circle.rotation.x = -Math.PI / 2;
+        circle.position.y = 0.12;
+        circle.userData = {
+          type: 'capture_circle',
+          row,
+          col,
+          isCapture: true
+        };
+        
+        highlightGroup.add(circle);
+        
+        // Add X mark for capture
+        const lineGeometry = new THREE.BufferGeometry();
+        const lineMaterial = new THREE.LineBasicMaterial({
+          color: 0xffffff,
+          linewidth: 3
+        });
+        
+        // Create X shape
+        const points = [
+          new THREE.Vector3(-0.3, 0.13, -0.3),
+          new THREE.Vector3(0.3, 0.13, 0.3),
+          new THREE.Vector3(0, 0.13, 0),
+          new THREE.Vector3(0.3, 0.13, -0.3),
+          new THREE.Vector3(-0.3, 0.13, 0.3)
+        ];
+        
+        lineGeometry.setFromPoints(points);
+        const xLine = new THREE.Line(lineGeometry, lineMaterial);
+        xLine.userData = {
+          type: 'capture_x',
+          row,
+          col,
+          isCapture: true
+        };
+        
+        highlightGroup.add(xLine);
+      } else {
+        // For regular moves, create a small dot in the center
+        const dotGeometry = new THREE.CircleGeometry(squareSize * 0.15, 16);
+        const dotMaterial = new THREE.MeshBasicMaterial({
+          color: color,
+          transparent: true,
+          opacity: 0.8,
+          side: THREE.DoubleSide
+        });
+        
+        const dot = new THREE.Mesh(dotGeometry, dotMaterial);
+        dot.rotation.x = -Math.PI / 2;
+        dot.position.y = 0.1;
+        dot.userData = {
+          type: 'move_dot',
+          row,
+          col,
+          isCapture: false
+        };
+        
+        highlightGroup.add(dot);
+      }
       
       // Add the highlight group to the scene
       sceneRef.current.add(highlightGroup);
@@ -1073,27 +1208,26 @@ const Chessboard = () => {
       // Add each part to the array for easier raycasting
       highlightGroup.children.forEach(child => {
         newHighlightMeshes.push(child);
-        // Add debug name for easier identification
         child.name = `highlight_${row}_${col}_${child.userData.type}`;
       });
       
       // Add debug name for the group
       highlightGroup.name = `highlightGroup_${row}_${col}`;
       
-      console.log(`Created highlight at ${row},${col} with ${highlightGroup.children.length} parts`);
+      console.log(`Created chess-style highlight at ${row},${col} with ${highlightGroup.children.length} parts`);
     };
     
     // Add highlight for selected piece
     if (selectedPiece) {
       const { row, col } = selectedPiece;
-      create3DHighlight(row, col, 0x0088ff, true, false); // Blue for selected piece
+      createChessHighlight(row, col, 0x0088ff, true, false); // Blue border for selected piece
     }
     
     // Add highlights for valid moves
     moves.forEach(([row, col]) => {
       const isCapture = movementTracker.current[row][col] !== null;
       const color = isCapture ? 0xff0000 : 0x00ff00;  // Red for captures, green for moves
-      create3DHighlight(row, col, color, false, isCapture);
+      createChessHighlight(row, col, color, false, isCapture);
     });
     
     // Store references to highlight meshes in both ref and state
@@ -1212,6 +1346,7 @@ const Chessboard = () => {
         isInCheck, 
         isInCheckmate
       );
+      
       
       // Add the move to history
       const newMove = {
@@ -1744,14 +1879,7 @@ const Chessboard = () => {
     }
   };
   
-  // Change AI color
-  const changeAIColor = (color) => {
-    setAiColor(color);
-    // If AI is enabled and it's already this color's turn, trigger a move
-    if (aiEnabled && currentPlayer === color) {
-      setTimeout(() => makeAiMove(), 500);
-    }
-  };
+  // AI color is always black - no need to change it
   
   // Change AI difficulty
   const changeAIDifficulty = (difficulty) => {
@@ -1765,8 +1893,19 @@ const Chessboard = () => {
         className="w-full h-screen absolute top-0 left-0"
       />
       {gameStatus && (
-        <div className="absolute top-5 left-1/2 transform -translate-x-1/2 bg-black/80 text-white px-5 py-2.5 rounded-md font-bold z-10 backdrop-blur-sm">
-          {gameStatus}
+        <div className="absolute top-5 left-1/2 transform -translate-x-1/2 bg-gradient-to-r from-slate-900/95 to-slate-800/95 text-white px-6 py-3 rounded-xl font-bold z-10 backdrop-blur-md border border-slate-700/50 shadow-2xl animate-slide-in-top mobile-responsive">
+          <div className="flex items-center space-x-2">
+            {gameStatus.includes('Checkmate') && (
+              <span className="text-2xl">♔</span>
+            )}
+            {gameStatus.includes('Check') && !gameStatus.includes('Checkmate') && (
+              <span className="text-2xl">⚠️</span>
+            )}
+            {gameStatus.includes('Stalemate') && (
+              <span className="text-2xl">🤝</span>
+            )}
+            <span className="text-lg">{gameStatus}</span>
+          </div>
         </div>
       )}
       {showWinnerPopup && (
@@ -1785,19 +1924,54 @@ const Chessboard = () => {
         </div>
       )}
       
-      {/* Current Player Indicator */}
-      <div className="absolute bottom-5 left-5 bg-black/80 text-white px-5 py-3 rounded-md z-10 backdrop-blur-sm flex items-center">
-        <div className={`w-3 h-3 rounded-full mr-2 ${currentPlayer === COLORS.WHITE ? 'bg-white' : 'bg-black border border-white'}`}></div>
-        <span>Current Player: {currentPlayer === COLORS.WHITE ? 'White' : 'Black'}</span>
-        {isAiThinking && currentPlayer === aiColor && (
-          <span className="ml-2 animate-pulse">AI thinking...</span>
-        )}
+      {/* Enhanced Current Player Status */}
+      <div className="absolute bottom-5 left-5 bg-gradient-to-r from-slate-900/95 to-slate-800/95 text-white px-6 py-4 rounded-xl z-10 backdrop-blur-md border border-slate-700/50 shadow-2xl animate-slide-in-bottom mobile-responsive">
+        <div className="flex items-center space-x-3">
+          {/* Player Indicator with Animation */}
+          <div className="relative">
+            <div className={`w-4 h-4 rounded-full ${currentPlayer === COLORS.WHITE ? 'bg-white shadow-lg' : 'bg-slate-800 border-2 border-white shadow-lg'} transition-all duration-300`}></div>
+            {currentPlayer === COLORS.WHITE && (
+              <div className="absolute inset-0 w-4 h-4 rounded-full bg-white animate-ping opacity-20"></div>
+            )}
+            {currentPlayer === COLORS.BLACK && (
+              <div className="absolute inset-0 w-4 h-4 rounded-full bg-white animate-ping opacity-20"></div>
+            )}
+          </div>
+          
+          {/* Player Text */}
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-slate-300">Current Turn</span>
+            <span className="text-lg font-bold text-white">
+              {currentPlayer === COLORS.WHITE ? 'White' : 'Black'}
+            </span>
+          </div>
+          
+          {/* AI Thinking Indicator */}
+          {isAiThinking && currentPlayer === aiColor && (
+            <div className="flex items-center space-x-2 ml-3 pl-3 border-l border-slate-600">
+              <div className="flex space-x-1">
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
+                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
+              </div>
+              <span className="text-sm text-blue-300 font-medium">AI thinking...</span>
+            </div>
+          )}
+        </div>
       </div>
       
-      {/* AI Controls Panel */}
-      <div className="absolute bottom-5 right-5 bg-black/80 text-white p-4 rounded-md z-10 backdrop-blur-sm w-64">
-        <div className="flex justify-between items-center mb-3">
-          <h3 className="font-semibold">AI Player</h3>
+      {/* Enhanced AI Controls Panel */}
+      <div className="absolute bottom-5 right-5 bg-gradient-to-br from-slate-900/95 to-slate-800/95 text-white p-5 rounded-xl z-10 backdrop-blur-md border border-slate-700/50 shadow-2xl w-72 animate-slide-in-bottom mobile-responsive">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-4">
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">AI</span>
+            </div>
+            <h3 className="font-bold text-lg">AI Player</h3>
+          </div>
+          
+          {/* Enhanced Toggle Switch */}
           <label className="relative inline-flex items-center cursor-pointer">
             <input 
               type="checkbox" 
@@ -1805,92 +1979,223 @@ const Chessboard = () => {
               checked={aiEnabled}
               onChange={toggleAI}
             />
-            <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+            <div className="w-12 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300/20 rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-green-500 peer-checked:to-emerald-500 shadow-lg"></div>
           </label>
         </div>
         
-        <div className="mb-3">
-          <p className="mb-1 text-sm">AI Color:</p>
-          <div className="flex space-x-2">
-            <button 
-              onClick={() => changeAIColor(COLORS.BLACK)}
-              className={`flex-1 py-1 px-2 rounded ${aiColor === COLORS.BLACK ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-400'}`}
-            >
-              Black
-            </button>
-            <button 
-              onClick={() => changeAIColor(COLORS.WHITE)}
-              className={`flex-1 py-1 px-2 rounded ${aiColor === COLORS.WHITE ? 'bg-gray-200 text-black' : 'bg-gray-800 text-gray-400'}`}
-            >
-              White
-            </button>
+        {/* AI Status Indicator */}
+        {aiEnabled && (
+          <div className="mb-4 p-3 bg-slate-800/50 rounded-lg border border-slate-600/50">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-slate-300">AI Status</span>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-sm text-green-400 font-medium">Active</span>
+              </div>
+            </div>
+            <div className="mt-2 text-xs text-slate-400">
+              Playing as: <span className="font-medium text-white">{aiColor === COLORS.WHITE ? 'White' : 'Black'}</span>
+            </div>
           </div>
-        </div>
+        )}
         
+        
+        {/* Difficulty Selection */}
         <div>
-          <p className="mb-1 text-sm">Difficulty:</p>
-          <div className="flex space-x-1">
+          <p className="mb-2 text-sm font-medium text-slate-300">Difficulty Level</p>
+          <div className="grid grid-cols-3 gap-2">
             <button 
               onClick={() => changeAIDifficulty('easy')}
-              className={`flex-1 py-1 px-1 rounded text-sm ${aiDifficulty === 'easy' ? 'bg-green-500' : 'bg-gray-700'}`}
+              className={`py-2 px-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                aiDifficulty === 'easy' 
+                  ? 'bg-green-500 text-white shadow-lg transform scale-105' 
+                  : 'bg-slate-800/50 text-slate-300 border border-slate-600 hover:bg-slate-700/50 hover:text-white'
+              }`}
             >
-              Easy
+              <div className="flex flex-col items-center space-y-1">
+                <span className="font-semibold">Easy</span>
+                <div className="flex space-x-1">
+                  <div className={`w-1 h-1 rounded-full ${
+                    aiDifficulty === 'easy' ? 'bg-white' : 'bg-slate-400'
+                  }`}></div>
+                </div>
+              </div>
             </button>
             <button 
               onClick={() => changeAIDifficulty('medium')}
-              className={`flex-1 py-1 px-1 rounded text-sm ${aiDifficulty === 'medium' ? 'bg-yellow-500 text-black' : 'bg-gray-700'}`}
+              className={`py-2 px-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                aiDifficulty === 'medium' 
+                  ? 'bg-amber-500 shadow-lg transform scale-105 border-2 border-amber-400' 
+                  : 'bg-slate-800/50 border border-slate-600 hover:bg-slate-700/50'
+              }`}
             >
-              Medium
+              <div className="flex flex-col items-center space-y-1">
+                <span className={`font-bold ${aiDifficulty === 'medium' ? 'text-white' : 'text-slate-300 hover:text-white'}`}>Medium</span>
+                <div className="flex space-x-1">
+                  <div className={`w-1 h-1 rounded-full ${
+                    aiDifficulty === 'medium' ? 'bg-white' : 'bg-slate-400'
+                  }`}></div>
+                  <div className={`w-1 h-1 rounded-full ${
+                    aiDifficulty === 'medium' ? 'bg-white' : 'bg-slate-400'
+                  }`}></div>
+                </div>
+              </div>
             </button>
             <button 
               onClick={() => changeAIDifficulty('hard')}
-              className={`flex-1 py-1 px-1 rounded text-sm ${aiDifficulty === 'hard' ? 'bg-red-500' : 'bg-gray-700'}`}
+              className={`py-2 px-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                aiDifficulty === 'hard' 
+                  ? 'bg-red-500 text-white shadow-lg transform scale-105' 
+                  : 'bg-slate-800/50 text-slate-300 border border-slate-600 hover:bg-slate-700/50 hover:text-white'
+              }`}
             >
-              Hard
+              <div className="flex flex-col items-center space-y-1">
+                <span className="font-semibold">Hard</span>
+                <div className="flex space-x-1">
+                  <div className={`w-1 h-1 rounded-full ${
+                    aiDifficulty === 'hard' ? 'bg-white' : 'bg-slate-400'
+                  }`}></div>
+                  <div className={`w-1 h-1 rounded-full ${
+                    aiDifficulty === 'hard' ? 'bg-white' : 'bg-slate-400'
+                  }`}></div>
+                  <div className={`w-1 h-1 rounded-full ${
+                    aiDifficulty === 'hard' ? 'bg-white' : 'bg-slate-400'
+                  }`}></div>
+                </div>
+              </div>
             </button>
           </div>
         </div>
       </div>
       
-      {/* Move History Panel */}
-      <div className="absolute top-5 right-5 bg-black/80 shadow-md p-4 rounded-md max-h-[70vh] overflow-y-auto z-10 w-64 backdrop-blur-sm">
-        <h3 className="text-center font-semibold mb-3 text-gray-100 border-b border-gray-700 pb-2">Move History</h3>
-        <div className="font-mono">
-          {moveHistory.length === 0 ? (
-            <div className="text-gray-400 text-center">No moves yet</div>
-          ) : (
-            <div>
-              {/* Group moves in pairs by turn number */}
-              {Array.from({ length: Math.ceil(moveHistory.length / 2) }, (_, i) => {
-                // Get white and black moves for this turn
-                const whiteMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.WHITE);
-                const blackMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.BLACK);
-                
-                return (
-                  <div key={i} className="mb-1 flex">
-                    <span className="text-gray-400 mr-2 w-6 text-right">{i + 1}.</span>
-                    <div className="flex-1 grid grid-cols-2 gap-2">
-                    {whiteMove && (
-                      <span 
-                          className={`${whiteMove.isCapture ? 'text-red-400' : 'text-gray-200'} ${whiteMove.isCheck || whiteMove.isCheckmate ? 'font-bold' : 'font-normal'}`}
-                      >
-                          {getPieceIcon(whiteMove.piece.type)} {whiteMove.notation}
-                      </span>
-                    )}
-                    {blackMove && (
-                      <span 
-                        className={`${blackMove.isCapture ? 'text-red-400' : 'text-gray-200'} ${blackMove.isCheck || blackMove.isCheckmate ? 'font-bold' : 'font-normal'}`}
-                      >
-                          {getPieceIcon(blackMove.piece.type)} {blackMove.notation}
-                      </span>
-                    )}
-                    </div>
-                  </div>
-                );
-              })}
+      {/* Enhanced Move History Panel */}
+      <div className="absolute top-5 right-5 bg-gradient-to-br from-slate-900/95 to-slate-800/95 shadow-2xl p-5 rounded-xl max-h-[75vh] overflow-hidden z-10 w-80 backdrop-blur-md border border-slate-700/50 animate-slide-in-right mobile-responsive">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">♔</span>
             </div>
-          )}
+            <h3 className="font-bold text-lg text-white">Move History</h3>
+          </div>
+          <div className="text-xs text-slate-400 bg-slate-800/50 px-2 py-1 rounded-full">
+            {moveHistory.length} moves
+          </div>
         </div>
+        
+        {/* Move List Container */}
+        <div className="bg-slate-800/30 rounded-lg border border-slate-600/30 overflow-hidden">
+          <div className="max-h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
+            {moveHistory.length === 0 ? (
+              <div className="p-6 text-center">
+                <div className="w-16 h-16 mx-auto mb-3 bg-slate-700/50 rounded-full flex items-center justify-center">
+                  <span className="text-2xl text-slate-400">♟</span>
+                </div>
+                <p className="text-slate-400 text-sm">No moves yet</p>
+                <p className="text-slate-500 text-xs mt-1">Start playing to see move history</p>
+              </div>
+            ) : (
+              <div className="p-3">
+                {/* Group moves in pairs by turn number */}
+                {Array.from({ length: Math.ceil(moveHistory.length / 2) }, (_, i) => {
+                  // Get white and black moves for this turn
+                  const whiteMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.WHITE);
+                  const blackMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.BLACK);
+                  
+                  return (
+                    <div key={i} className="mb-2 last:mb-0">
+                      {/* Turn Number */}
+                      <div className="flex items-center mb-1">
+                        <span className="text-slate-400 text-sm font-medium w-8 text-right mr-3">{i + 1}.</span>
+                        <div className="flex-1 grid grid-cols-2 gap-2">
+                          {/* White Move */}
+                          {whiteMove && (
+                            <div className={`p-2 rounded-lg transition-all duration-200 ${
+                              whiteMove.isCheckmate 
+                                ? 'bg-red-500/20 border border-red-500/30' 
+                                : whiteMove.isCheck 
+                                ? 'bg-yellow-500/20 border border-yellow-500/30'
+                                : whiteMove.isCapture
+                                ? 'bg-orange-500/20 border border-orange-500/30'
+                                : 'bg-slate-700/30 border border-slate-600/30 hover:bg-slate-700/50'
+                            }`}>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-lg">{getPieceIcon(whiteMove.piece.type)}</span>
+                                <span className={`font-mono text-sm font-medium ${
+                                  whiteMove.isCheckmate 
+                                    ? 'text-red-300' 
+                                    : whiteMove.isCheck 
+                                    ? 'text-yellow-300'
+                                    : whiteMove.isCapture
+                                    ? 'text-orange-300'
+                                    : 'text-white'
+                                }`}>
+                                  {whiteMove.notation}
+                                </span>
+                                {whiteMove.isCheckmate && <span className="text-red-400 text-xs">#</span>}
+                                {whiteMove.isCheck && !whiteMove.isCheckmate && <span className="text-yellow-400 text-xs">+</span>}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Black Move */}
+                          {blackMove && (
+                            <div className={`p-2 rounded-lg transition-all duration-200 ${
+                              blackMove.isCheckmate 
+                                ? 'bg-red-500/20 border border-red-500/30' 
+                                : blackMove.isCheck 
+                                ? 'bg-yellow-500/20 border border-yellow-500/30'
+                                : blackMove.isCapture
+                                ? 'bg-orange-500/20 border border-orange-500/30'
+                                : 'bg-slate-700/30 border border-slate-600/30 hover:bg-slate-700/50'
+                            }`}>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-lg">{getPieceIcon(blackMove.piece.type)}</span>
+                                <span className={`font-mono text-sm font-medium ${
+                                  blackMove.isCheckmate 
+                                    ? 'text-red-300' 
+                                    : blackMove.isCheck 
+                                    ? 'text-yellow-300'
+                                    : blackMove.isCapture
+                                    ? 'text-orange-300'
+                                    : 'text-white'
+                                }`}>
+                                  {blackMove.notation}
+                                </span>
+                                {blackMove.isCheckmate && <span className="text-red-400 text-xs">#</span>}
+                                {blackMove.isCheck && !blackMove.isCheckmate && <span className="text-yellow-400 text-xs">+</span>}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Legend */}
+        {moveHistory.length > 0 && (
+          <div className="mt-3 pt-3 border-t border-slate-600/30">
+            <div className="flex items-center justify-center space-x-4 text-xs text-slate-400">
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                <span>Capture</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span>Check</span>
+              </div>
+              <div className="flex items-center space-x-1">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span>Checkmate</span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
