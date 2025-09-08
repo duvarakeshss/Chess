@@ -12,18 +12,6 @@ export const COLORS = {
   BLACK: 'black',
 };
 
-// Game state to track special moves
-export const createGameState = () => ({
-  enPassantTarget: null, // {row, col} of the square that can be captured en passant
-  castlingRights: {
-    white: { kingside: true, queenside: true },
-    black: { kingside: true, queenside: true }
-  },
-  halfMoveClock: 0, // For 50-move rule
-  fullMoveNumber: 1,
-  lastMove: null
-});
-
 // Initial board setup
 export const createInitialBoard = () => {
   const board = Array(8).fill().map(() => Array(8).fill(null));
@@ -69,7 +57,7 @@ const isValidPosition = (row, col) => {
 };
 
 // Get all valid moves for a pawn
-const getPawnMoves = (board, row, col, color, gameState = null) => {
+const getPawnMoves = (board, row, col, color) => {
   const moves = [];
   const direction = color === COLORS.WHITE ? -1 : 1;
   const startRow = color === COLORS.WHITE ? 6 : 1;
@@ -91,16 +79,8 @@ const getPawnMoves = (board, row, col, color, gameState = null) => {
   ];
   
   for (const [r, c] of captureMoves) {
-    if (isValidPosition(r, c)) {
-      // Regular capture
-      if (board[r][c] && board[r][c].color !== color) {
-        moves.push([r, c]);
-      }
-      // En passant capture
-      else if (gameState && gameState.enPassantTarget && 
-               gameState.enPassantTarget.row === r && gameState.enPassantTarget.col === c) {
-        moves.push([r, c]);
-      }
+    if (isValidPosition(r, c) && board[r][c] && board[r][c].color !== color) {
+      moves.push([r, c]);
     }
   }
   
@@ -197,7 +177,7 @@ const getQueenMoves = (board, row, col, color) => {
 };
 
 // Get all valid moves for a king
-const getKingMoves = (board, row, col, color, gameState = null) => {
+const getKingMoves = (board, row, col, color) => {
   const moves = [];
   const kingMoves = [
     [-1, -1], [-1, 0], [-1, 1],
@@ -214,51 +194,11 @@ const getKingMoves = (board, row, col, color, gameState = null) => {
     }
   }
   
-  // Castling moves
-  if (gameState && gameState.castlingRights) {
-    const castlingRights = gameState.castlingRights[color];
-    
-    // Kingside castling
-    if (castlingRights.kingside) {
-      const rookCol = 7;
-      const kingCol = 4;
-      const targetKingCol = 6;
-      const targetRookCol = 5;
-      
-      // Check if path is clear and rook hasn't moved
-      if (board[row][rookCol] && 
-          board[row][rookCol].type === PIECES.ROOK && 
-          board[row][rookCol].color === color &&
-          !board[row][targetKingCol] && 
-          !board[row][targetRookCol]) {
-        moves.push([row, targetKingCol]);
-      }
-    }
-    
-    // Queenside castling
-    if (castlingRights.queenside) {
-      const rookCol = 0;
-      const kingCol = 4;
-      const targetKingCol = 2;
-      const targetRookCol = 3;
-      
-      // Check if path is clear and rook hasn't moved
-      if (board[row][rookCol] && 
-          board[row][rookCol].type === PIECES.ROOK && 
-          board[row][rookCol].color === color &&
-          !board[row][targetKingCol] && 
-          !board[row][targetRookCol] &&
-          !board[row][1]) { // b-file must be clear for queenside
-        moves.push([row, targetKingCol]);
-      }
-    }
-  }
-  
   return moves;
 };
 
-// Get all valid moves for a piece
-export const getValidMoves = (board, row, col, gameState = null) => {
+// Get raw moves for a piece (without king safety checks)
+const getRawMoves = (board, row, col) => {
   const piece = board[row][col];
   if (!piece) return [];
   
@@ -266,7 +206,7 @@ export const getValidMoves = (board, row, col, gameState = null) => {
   
   switch(type) {
     case PIECES.PAWN:
-      return getPawnMoves(board, row, col, color, gameState);
+      return getPawnMoves(board, row, col, color);
     case PIECES.ROOK:
       return getRookMoves(board, row, col, color);
     case PIECES.KNIGHT:
@@ -276,10 +216,25 @@ export const getValidMoves = (board, row, col, gameState = null) => {
     case PIECES.QUEEN:
       return getQueenMoves(board, row, col, color);
     case PIECES.KING:
-      return getKingMoves(board, row, col, color, gameState);
+      return getKingMoves(board, row, col, color);
     default:
       return [];
   }
+};
+
+// Get all valid moves for a piece (excluding moves that put own king in check)
+export const getValidMoves = (board, row, col) => {
+  const piece = board[row][col];
+  if (!piece) return [];
+  
+  const { color } = piece;
+  const rawMoves = getRawMoves(board, row, col);
+  
+  // Filter out moves that would put own king in check
+  return rawMoves.filter(([toRow, toCol]) => {
+    const newBoard = makeMove(board, row, col, toRow, toCol);
+    return !isKingInCheck(newBoard, color);
+  });
 };
 
 // Check if the king is in check
@@ -307,7 +262,7 @@ export const isKingInCheck = (board, color) => {
     for (let col = 0; col < 8; col++) {
       const piece = board[row][col];
       if (piece && piece.color === opponentColor) {
-        const moves = getValidMoves(board, row, col);
+        const moves = getRawMoves(board, row, col); // Use getRawMoves to avoid recursion
         for (const [r, c] of moves) {
           if (r === kingRow && c === kingCol) {
             return true;
@@ -320,92 +275,34 @@ export const isKingInCheck = (board, color) => {
   return false;
 };
 
-// Make a move and return the new board state and game state
-export const makeMove = (board, fromRow, fromCol, toRow, toCol, gameState = null, promotionPiece = null) => {
+// Make a move and return the new board state
+export const makeMove = (board, fromRow, fromCol, toRow, toCol, promotionPiece = null) => {
   // Create a deep copy of the board to avoid mutating the original
   const newBoard = board.map(row => [...row]);
-  const piece = newBoard[fromRow][fromCol];
-  const newGameState = gameState ? { ...gameState } : createGameState();
   
-  // Handle special moves
-  if (piece.type === PIECES.PAWN) {
-    // En passant capture
-    if (newGameState.enPassantTarget && 
-        newGameState.enPassantTarget.row === toRow && 
-        newGameState.enPassantTarget.col === toCol) {
-      // Remove the captured pawn
-      const capturedPawnRow = piece.color === COLORS.WHITE ? toRow + 1 : toRow - 1;
-      newBoard[capturedPawnRow][toCol] = null;
-    }
-    
-    // Set en passant target for next move (if pawn moves two squares)
-    const direction = piece.color === COLORS.WHITE ? -1 : 1;
-    const startRow = piece.color === COLORS.WHITE ? 6 : 1;
-    if (fromRow === startRow && toRow === fromRow + 2 * direction) {
-      newGameState.enPassantTarget = { row: fromRow + direction, col: fromCol };
-    } else {
-      newGameState.enPassantTarget = null;
-    }
-    
-    // Pawn promotion
-    const promotionRow = piece.color === COLORS.WHITE ? 0 : 7;
-    if (toRow === promotionRow) {
-      const promotedPiece = promotionPiece || PIECES.QUEEN; // Default to queen
-      newBoard[toRow][toCol] = { type: promotedPiece, color: piece.color };
+  const piece = newBoard[fromRow][fromCol];
+  
+  // Handle pawn promotion
+  if (piece && piece.type === PIECES.PAWN) {
+    if ((piece.color === COLORS.WHITE && toRow === 0) || 
+        (piece.color === COLORS.BLACK && toRow === 7)) {
+      // Promote pawn to queen by default, or specified piece
+      newBoard[toRow][toCol] = { 
+        type: promotionPiece || PIECES.QUEEN, 
+        color: piece.color 
+      };
     } else {
       newBoard[toRow][toCol] = piece;
     }
-  } else if (piece.type === PIECES.KING) {
-    // Castling
-    const castlingDistance = Math.abs(toCol - fromCol);
-    if (castlingDistance === 2) {
-      // Move the rook
-      if (toCol > fromCol) { // Kingside
-        newBoard[fromRow][5] = newBoard[fromRow][7]; // Move rook to f-file
-        newBoard[fromRow][7] = null;
-      } else { // Queenside
-        newBoard[fromRow][3] = newBoard[fromRow][0]; // Move rook to d-file
-        newBoard[fromRow][0] = null;
-      }
-    }
-    newBoard[toRow][toCol] = piece;
-    
-    // Remove castling rights for this color
-    newGameState.castlingRights[piece.color] = { kingside: false, queenside: false };
-  } else if (piece.type === PIECES.ROOK) {
-    newBoard[toRow][toCol] = piece;
-    
-    // Remove castling rights for the rook that moved
-    if (fromRow === (piece.color === COLORS.WHITE ? 7 : 0)) {
-      if (fromCol === 0) { // Queenside rook
-        newGameState.castlingRights[piece.color].queenside = false;
-      } else if (fromCol === 7) { // Kingside rook
-        newGameState.castlingRights[piece.color].kingside = false;
-      }
-    }
   } else {
+    // Move the piece to the destination
     newBoard[toRow][toCol] = piece;
   }
   
   // Clear the source square
   newBoard[fromRow][fromCol] = null;
   
-  // Update move counters
-  if (piece.color === COLORS.BLACK) {
-    newGameState.fullMoveNumber++;
-  }
-  
-  // Update half-move clock (for 50-move rule)
-  if (piece.type === PIECES.PAWN || newBoard[toRow][toCol] !== null) {
-    newGameState.halfMoveClock = 0;
-  } else {
-    newGameState.halfMoveClock++;
-  }
-  
-  // Store last move
-  newGameState.lastMove = { from: [fromRow, fromCol], to: [toRow, toCol], piece };
-  
-  return { board: newBoard, gameState: newGameState };
+  return newBoard;
 };
 
 // Check if the given player is in checkmate
@@ -438,7 +335,7 @@ export const isCheckmate = (board, color) => {
 };
 
 // Check if the game is a stalemate
-export const isStalemate = (board, color, gameState = null) => {
+export const isStalemate = (board, color) => {
   // If the king is in check, it's not stalemate
   if (isKingInCheck(board, color)) return false;
   
@@ -447,7 +344,7 @@ export const isStalemate = (board, color, gameState = null) => {
     for (let col = 0; col < 8; col++) {
       const piece = board[row][col];
       if (piece && piece.color === color) {
-        const moves = getValidMoves(board, row, col, gameState);
+        const moves = getValidMoves(board, row, col);
         if (moves.length > 0) {
           return false;
         }
@@ -457,139 +354,4 @@ export const isStalemate = (board, color, gameState = null) => {
   
   // If the player has no legal moves and is not in check, it's stalemate
   return true;
-};
-
-// Check if a move is legal (doesn't put own king in check)
-export const isLegalMove = (board, fromRow, fromCol, toRow, toCol, gameState = null) => {
-  const piece = board[fromRow][fromCol];
-  if (!piece) return false;
-  
-  // Make the move temporarily
-  const moveResult = makeMove(board, fromRow, fromCol, toRow, toCol, gameState);
-  const newBoard = moveResult.board;
-  
-  // Check if this move puts the king in check
-  const kingInCheck = isKingInCheck(newBoard, piece.color);
-  
-  return !kingInCheck;
-};
-
-// Get all legal moves for a piece (filtering out moves that put king in check)
-export const getLegalMoves = (board, row, col, gameState = null) => {
-  const moves = getValidMoves(board, row, col, gameState);
-  return moves.filter(([toRow, toCol]) => isLegalMove(board, row, col, toRow, toCol, gameState));
-};
-
-// Check for 50-move rule (draw)
-export const isFiftyMoveRule = (gameState) => {
-  return gameState && gameState.halfMoveClock >= 50;
-};
-
-// Check for insufficient material (draw)
-export const isInsufficientMaterial = (board) => {
-  const pieces = [];
-  
-  // Count all pieces
-  for (let row = 0; row < 8; row++) {
-    for (let col = 0; col < 8; col++) {
-      const piece = board[row][col];
-      if (piece) {
-        pieces.push(piece);
-      }
-    }
-  }
-  
-  // If only kings remain
-  if (pieces.length === 2) {
-    return true;
-  }
-  
-  // If only king and one minor piece per side
-  if (pieces.length === 4) {
-    const whitePieces = pieces.filter(p => p.color === COLORS.WHITE);
-    const blackPieces = pieces.filter(p => p.color === COLORS.BLACK);
-    
-    if (whitePieces.length === 2 && blackPieces.length === 2) {
-      const whiteMinor = whitePieces.find(p => p.type === PIECES.BISHOP || p.type === PIECES.KNIGHT);
-      const blackMinor = blackPieces.find(p => p.type === PIECES.BISHOP || p.type === PIECES.KNIGHT);
-      
-      if (whiteMinor && blackMinor) {
-        // If both have bishops on same color squares, it's insufficient material
-        if (whiteMinor.type === PIECES.BISHOP && blackMinor.type === PIECES.BISHOP) {
-          const whiteBishopSquare = getBishopSquare(board, COLORS.WHITE);
-          const blackBishopSquare = getBishopSquare(board, COLORS.BLACK);
-          
-          if (whiteBishopSquare && blackBishopSquare) {
-            const whiteColor = (whiteBishopSquare.row + whiteBishopSquare.col) % 2;
-            const blackColor = (blackBishopSquare.row + blackBishopSquare.col) % 2;
-            return whiteColor === blackColor;
-          }
-        }
-        return true;
-      }
-    }
-  }
-  
-  return false;
-};
-
-// Helper function to find bishop square
-const getBishopSquare = (board, color) => {
-  for (let row = 0; row < 8; row++) {
-    for (let col = 0; col < 8; col++) {
-      const piece = board[row][col];
-      if (piece && piece.type === PIECES.BISHOP && piece.color === color) {
-        return { row, col };
-      }
-    }
-  }
-  return null;
-};
-
-// Check for threefold repetition (simplified - would need move history)
-export const isThreefoldRepetition = (moveHistory) => {
-  if (!moveHistory || moveHistory.length < 6) return false;
-  
-  // This is a simplified check - in a real implementation, you'd need to track board positions
-  // For now, we'll just return false
-  return false;
-};
-
-// Check if the game is a draw
-export const isDraw = (board, color, gameState, moveHistory) => {
-  return isStalemate(board, color, gameState) ||
-         isFiftyMoveRule(gameState) ||
-         isInsufficientMaterial(board) ||
-         isThreefoldRepetition(moveHistory);
-};
-
-// Get piece value for evaluation
-export const getPieceValue = (piece) => {
-  const values = {
-    [PIECES.PAWN]: 1,
-    [PIECES.KNIGHT]: 3,
-    [PIECES.BISHOP]: 3,
-    [PIECES.ROOK]: 5,
-    [PIECES.QUEEN]: 9,
-    [PIECES.KING]: 100
-  };
-  return values[piece.type] || 0;
-};
-
-// Check if a square is under attack by the given color
-export const isSquareUnderAttack = (board, row, col, attackingColor) => {
-  for (let r = 0; r < 8; r++) {
-    for (let c = 0; c < 8; c++) {
-      const piece = board[r][c];
-      if (piece && piece.color === attackingColor) {
-        const moves = getValidMoves(board, r, c);
-        for (const [toRow, toCol] of moves) {
-          if (toRow === row && toCol === col) {
-            return true;
-          }
-        }
-      }
-    }
-  }
-  return false;
 };

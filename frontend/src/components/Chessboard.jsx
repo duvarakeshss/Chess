@@ -106,25 +106,26 @@ const Chessboard = () => {
     // Clear any previous content
     mountRef.current.innerHTML = '';
 
-    // Set up scene with animated colorful background
+    // Set up scene with animated aesthetic light background
     const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1e3a8a); // Deep blue fallback color
     
-    // Create animated background with multiple colors
+    // Create animated light background
     const canvas = document.createElement('canvas');
-    canvas.width = 512;
-    canvas.height = 512;
+    canvas.width = 1024;
+    canvas.height = 1024;
     const context = canvas.getContext('2d');
     
-    // Sophisticated color palette with better aesthetics
-    const colors = [
-      { r: 67, g: 56, b: 202, name: 'Royal Purple' },     // Deep purple
-      { r: 139, g: 69, b: 19, name: 'Rich Brown' },       // Warm brown
-      { r: 30, g: 64, b: 175, name: 'Navy Blue' },        // Deep blue
-      { r: 185, g: 28, b: 28, name: 'Crimson' },          // Deep red
-      { r: 22, g: 101, b: 52, name: 'Forest Green' },     // Deep green
-      { r: 120, g: 53, b: 15, name: 'Burnt Orange' },     // Warm orange
-      { r: 75, g: 85, b: 99, name: 'Slate Gray' },        // Sophisticated gray
-      { r: 124, g: 58, b: 237, name: 'Violet' }           // Rich violet
+    // Beautiful blue color palette
+    const lightColors = [
+      { r: 30, g: 58, b: 138, name: 'Deep Blue' },         // Deep ocean blue
+      { r: 59, g: 130, b: 246, name: 'Bright Blue' },      // Bright blue
+      { r: 96, g: 165, b: 250, name: 'Sky Blue' },         // Light sky blue
+      { r: 147, g: 197, b: 253, name: 'Powder Blue' },     // Powder blue
+      { r: 191, g: 219, b: 254, name: 'Light Blue' },      // Very light blue
+      { r: 37, g: 99, b: 235, name: 'Royal Blue' },        // Royal blue
+      { r: 79, g: 70, b: 229, name: 'Indigo Blue' },       // Indigo blue
+      { r: 129, g: 140, b: 248, name: 'Periwinkle' }       // Periwinkle blue
     ];
     
     let time = 0;
@@ -132,78 +133,78 @@ const Chessboard = () => {
     let nextColorIndex = 1;
     
     const updateBackground = () => {
-      time += 0.008; // Slower, more elegant animation
+      time += 0.003; // Very gentle animation speed
       
-      // Clear canvas with subtle fade effect
-      context.fillStyle = 'rgba(0, 0, 0, 0.05)';
-      context.fillRect(0, 0, 512, 512);
+      // Clear canvas with subtle fade
+      context.fillStyle = 'rgba(30, 58, 138, 0.02)';
+      context.fillRect(0, 0, 1024, 1024);
       
-      // Smooth color transition with easing
-      const t = (Math.sin(time * 0.5) + 1) / 2; // Slower, smoother transition
-      const currentColor = colors[currentColorIndex];
-      const nextColor = colors[nextColorIndex];
+      // Smooth color transition
+      const t = (Math.sin(time * 0.3) + 1) / 2;
+      const currentColor = lightColors[currentColorIndex];
+      const nextColor = lightColors[nextColorIndex];
       
-      // Enhanced color interpolation with better blending
-      const easeInOut = t * t * (3 - 2 * t); // Smooth easing function
+      // Gentle easing function
+      const easeInOut = t * t * (3 - 2 * t);
       const r = Math.floor(currentColor.r + (nextColor.r - currentColor.r) * easeInOut);
       const g = Math.floor(currentColor.g + (nextColor.g - currentColor.g) * easeInOut);
       const b = Math.floor(currentColor.b + (nextColor.b - currentColor.b) * easeInOut);
       
-      // Create sophisticated multi-layer gradient
-      const centerX = 256 + Math.sin(time * 0.1) * 20;
-      const centerY = 256 + Math.cos(time * 0.1) * 20;
+      // Create soft radial gradient from center
+      const centerX = 512 + Math.sin(time * 0.05) * 30;
+      const centerY = 512 + Math.cos(time * 0.05) * 30;
       
-      // Main gradient
-      const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 400);
+      const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 600);
       gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.9)`);
-      gradient.addColorStop(0.4, `rgba(${Math.floor(r * 0.7)}, ${Math.floor(g * 0.7)}, ${Math.floor(b * 0.7)}, 0.8)`);
-      gradient.addColorStop(0.8, `rgba(${Math.floor(r * 0.4)}, ${Math.floor(g * 0.4)}, ${Math.floor(b * 0.4)}, 0.6)`);
-      gradient.addColorStop(1, `rgba(${Math.floor(r * 0.2)}, ${Math.floor(g * 0.2)}, ${Math.floor(b * 0.2)}, 0.4)`);
+      gradient.addColorStop(0.3, `rgba(${Math.floor(r * 0.9)}, ${Math.floor(g * 0.9)}, ${Math.floor(b * 0.9)}, 0.8)`);
+      gradient.addColorStop(0.7, `rgba(${Math.floor(r * 0.8)}, ${Math.floor(g * 0.8)}, ${Math.floor(b * 0.8)}, 0.6)`);
+      gradient.addColorStop(1, `rgba(${Math.floor(r * 0.7)}, ${Math.floor(g * 0.7)}, ${Math.floor(b * 0.7)}, 0.4)`);
       
-      context.fillStyle = gradient;
-      context.fillRect(0, 0, 512, 512);
+    context.fillStyle = gradient;
+      context.fillRect(0, 0, 1024, 1024);
       
-      // Add elegant floating orbs with glow effect
-      for (let i = 0; i < 15; i++) {
-        const angle = (time * 0.3 + i * 0.4) % (Math.PI * 2);
-        const radius = 150 + Math.sin(time * 0.2 + i) * 50;
+      // Add floating light orbs
+      for (let i = 0; i < 8; i++) {
+        const angle = (time * 0.1 + i * 0.8) % (Math.PI * 2);
+        const radius = 200 + Math.sin(time * 0.1 + i) * 100;
         const x = centerX + Math.cos(angle) * radius;
         const y = centerY + Math.sin(angle) * radius;
-        const size = 3 + Math.sin(time * 1.5 + i) * 2;
-        const alpha = 0.4 + Math.sin(time * 2 + i) * 0.3;
+        const size = 2 + Math.sin(time * 0.8 + i) * 1.5;
+        const alpha = 0.3 + Math.sin(time * 1.2 + i) * 0.2;
         
-        // Create glow effect
-        const glowGradient = context.createRadialGradient(x, y, 0, x, y, size * 3);
-        glowGradient.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
-        glowGradient.addColorStop(0.5, `rgba(255, 255, 255, ${alpha * 0.5})`);
-        glowGradient.addColorStop(1, `rgba(255, 255, 255, 0)`);
+        // Create soft blue glow
+        const glowGradient = context.createRadialGradient(x, y, 0, x, y, size * 4);
+        glowGradient.addColorStop(0, `rgba(147, 197, 253, ${alpha})`);
+        glowGradient.addColorStop(0.3, `rgba(147, 197, 253, ${alpha * 0.6})`);
+        glowGradient.addColorStop(0.7, `rgba(147, 197, 253, ${alpha * 0.2})`);
+        glowGradient.addColorStop(1, `rgba(147, 197, 253, 0)`);
         
         context.fillStyle = glowGradient;
         context.beginPath();
-        context.arc(x, y, size * 3, 0, Math.PI * 2);
+        context.arc(x, y, size * 4, 0, Math.PI * 2);
         context.fill();
         
-        // Core orb
-        context.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+        // Core light
+        context.fillStyle = `rgba(191, 219, 254, ${alpha * 0.8})`;
         context.beginPath();
         context.arc(x, y, size, 0, Math.PI * 2);
         context.fill();
       }
       
-      // Add sophisticated geometric patterns
-      for (let i = 0; i < 6; i++) {
-        const angle = time * 0.05 + i * Math.PI / 3;
-        const x = centerX + Math.cos(angle) * 250;
-        const y = centerY + Math.sin(angle) * 250;
-        const size = 8 + Math.sin(time * 0.6 + i) * 4;
-        const rotation = time * 0.08 + i;
+      // Add subtle geometric patterns
+      for (let i = 0; i < 4; i++) {
+        const angle = time * 0.02 + i * Math.PI / 2;
+        const x = centerX + Math.cos(angle) * 300;
+        const y = centerY + Math.sin(angle) * 300;
+        const size = 6 + Math.sin(time * 0.3 + i) * 3;
+        const rotation = time * 0.02 + i;
         
         context.save();
         context.translate(x, y);
         context.rotate(rotation);
         
-        // Create diamond shape
-        context.fillStyle = `rgba(255, 255, 255, 0.08)`;
+        // Create soft diamond shape
+        context.fillStyle = `rgba(147, 197, 253, 0.15)`;
         context.beginPath();
         context.moveTo(0, -size);
         context.lineTo(size, 0);
@@ -212,32 +213,42 @@ const Chessboard = () => {
         context.closePath();
         context.fill();
         
-        // Add subtle border
-        context.strokeStyle = `rgba(255, 255, 255, 0.15)`;
+        // Subtle border
+        context.strokeStyle = `rgba(191, 219, 254, 0.2)`;
         context.lineWidth = 1;
         context.stroke();
         
         context.restore();
       }
       
-      // Add subtle noise texture for depth
-      const imageData = context.getImageData(0, 0, 512, 512);
-      const data = imageData.data;
-      for (let i = 0; i < data.length; i += 4) {
-        const noise = (Math.random() - 0.5) * 2; // Very subtle noise
-        data[i] = Math.max(0, Math.min(255, data[i] + noise));     // Red
-        data[i + 1] = Math.max(0, Math.min(255, data[i + 1] + noise)); // Green
-        data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + noise)); // Blue
+      // Add gentle wave patterns
+      for (let i = 0; i < 3; i++) {
+        const waveY = 200 + i * 300;
+        const amplitude = 20 + Math.sin(time * 0.1 + i) * 10;
+        const frequency = 0.02 + i * 0.01;
+        
+        context.strokeStyle = `rgba(147, 197, 253, 0.15)`;
+        context.lineWidth = 1.5;
+        context.beginPath();
+        
+        for (let x = 0; x < 1024; x += 2) {
+          const y = waveY + Math.sin(x * frequency + time * 0.1) * amplitude;
+          if (x === 0) {
+            context.moveTo(x, y);
+          } else {
+            context.lineTo(x, y);
+          }
+        }
+        context.stroke();
       }
-      context.putImageData(imageData, 0, 0);
       
       // Update texture
       texture.needsUpdate = true;
       
-      // Change color every 4 seconds for more elegant transitions
-      if (Math.floor(time * 0.25) > Math.floor((time - 0.008) * 0.25)) {
+      // Change color every 8 seconds for very gentle transitions
+      if (Math.floor(time * 0.125) > Math.floor((time - 0.003) * 0.125)) {
         currentColorIndex = nextColorIndex;
-        nextColorIndex = (nextColorIndex + 1) % colors.length;
+        nextColorIndex = (nextColorIndex + 1) % lightColors.length;
       }
       
       requestAnimationFrame(updateBackground);
@@ -251,7 +262,7 @@ const Chessboard = () => {
     updateBackground();
     
     sceneRef.current = scene;
-    console.log('Scene created with animated colorful background');
+    console.log('Scene created with animated aesthetic light background');
 
     // Set up camera
     const camera = new THREE.PerspectiveCamera(
@@ -1087,8 +1098,8 @@ const Chessboard = () => {
     const squareSize = 2.0;  
     const boardOffset = (boardSize * squareSize) / 2;
     
-    // Helper function to create chess-style move indicators
-    const createChessHighlight = (row, col, color, isSelectedPiece = false, isCapture = false) => {
+    // Helper function to create 3D highlight indicators
+    const create3DHighlight = (row, col, color, isSelectedPiece = false, isCapture = false) => {
       // Calculate position to exactly match board squares
       const worldX = (col * squareSize) - boardOffset + (squareSize / 2);
       const worldZ = (row * squareSize) - boardOffset + (squareSize / 2);
@@ -1104,102 +1115,89 @@ const Chessboard = () => {
         isCapture
       };
       
-      if (isSelectedPiece) {
-        // For selected piece, create a border highlight
-        const borderGeometry = new THREE.RingGeometry(
-          squareSize * 0.4, // inner radius
-          squareSize * 0.48, // outer radius
-          32 // segments
+      // Define indicator dimensions
+      const indicatorHeight = 1.0; // Taller to be visible like chess pieces
+      const indicatorRadius = 0.4; // INCREASED from 0.3 to make easier to click
+      
+      // Create four indicator towers at the corners of the square
+      const cornerOffset = (squareSize / 2) - (indicatorRadius / 2);
+      
+      // Create corners similar to chess pieces
+      const corners = [
+        { x: cornerOffset, z: cornerOffset },     // NE
+        { x: -cornerOffset, z: cornerOffset },    // NW
+        { x: cornerOffset, z: -cornerOffset },    // SE
+        { x: -cornerOffset, z: -cornerOffset }    // SW
+      ];
+      
+      corners.forEach((corner, index) => {
+        // Use cylinder geometry similar to chess pieces
+        const towerGeometry = new THREE.CylinderGeometry(
+          indicatorRadius * 0.8, // top radius (slightly tapered)
+          indicatorRadius,      // bottom radius
+          indicatorHeight,      // height
+          16                    // segments
         );
         
-        const borderMaterial = new THREE.MeshBasicMaterial({
+        const towerMaterial = new THREE.MeshStandardMaterial({
           color: color,
           transparent: true,
           opacity: 0.8,
-          side: THREE.DoubleSide
+          metalness: 0.5,
+          roughness: 0.5
         });
         
-        const border = new THREE.Mesh(borderGeometry, borderMaterial);
-        border.rotation.x = -Math.PI / 2; // Rotate to be horizontal
-        border.position.y = 0.15; // Just above the board
-        border.userData = {
-          type: 'selected_border',
+        const tower = new THREE.Mesh(towerGeometry, towerMaterial);
+        
+        // Position the tower at corner, half height up from the board
+        tower.position.set(
+          corner.x,
+          indicatorHeight / 2, // Position from bottom of cylinder
+          corner.z
+        );
+        
+        tower.userData = {
+          type: 'highlight_tower',
+          cornerIndex: index,
           row,
           col,
-          isSelectedPiece: true
+          isSelectedPiece,
+          isCapture
         };
         
-        highlightGroup.add(border);
-      } else if (isCapture) {
-        // For captures, create a red circle with X
-        const circleGeometry = new THREE.CircleGeometry(squareSize * 0.3, 32);
-        const circleMaterial = new THREE.MeshBasicMaterial({
-          color: 0xff0000,
-          transparent: true,
-          opacity: 0.7,
-          side: THREE.DoubleSide
-        });
-        
-        const circle = new THREE.Mesh(circleGeometry, circleMaterial);
-        circle.rotation.x = -Math.PI / 2;
-        circle.position.y = 0.12;
-        circle.userData = {
-          type: 'capture_circle',
-          row,
-          col,
-          isCapture: true
-        };
-        
-        highlightGroup.add(circle);
-        
-        // Add X mark for capture
-        const lineGeometry = new THREE.BufferGeometry();
-        const lineMaterial = new THREE.LineBasicMaterial({
-          color: 0xffffff,
-          linewidth: 3
-        });
-        
-        // Create X shape
-        const points = [
-          new THREE.Vector3(-0.3, 0.13, -0.3),
-          new THREE.Vector3(0.3, 0.13, 0.3),
-          new THREE.Vector3(0, 0.13, 0),
-          new THREE.Vector3(0.3, 0.13, -0.3),
-          new THREE.Vector3(-0.3, 0.13, 0.3)
-        ];
-        
-        lineGeometry.setFromPoints(points);
-        const xLine = new THREE.Line(lineGeometry, lineMaterial);
-        xLine.userData = {
-          type: 'capture_x',
-          row,
-          col,
-          isCapture: true
-        };
-        
-        highlightGroup.add(xLine);
-      } else {
-        // For regular moves, create a small dot in the center
-        const dotGeometry = new THREE.CircleGeometry(squareSize * 0.15, 16);
-        const dotMaterial = new THREE.MeshBasicMaterial({
-          color: color,
-          transparent: true,
-          opacity: 0.8,
-          side: THREE.DoubleSide
-        });
-        
-        const dot = new THREE.Mesh(dotGeometry, dotMaterial);
-        dot.rotation.x = -Math.PI / 2;
-        dot.position.y = 0.1;
-        dot.userData = {
-          type: 'move_dot',
-          row,
-          col,
-          isCapture: false
-        };
-        
-        highlightGroup.add(dot);
-      }
+        highlightGroup.add(tower);
+      });
+      
+      // Create a LARGER thin 3D box for the base highlight instead of a plane
+      // This ensures it's visible from all angles and EASIER TO CLICK
+      const baseGeometry = new THREE.BoxGeometry(squareSize - 0.05, 0.1, squareSize - 0.05); // Increased height
+      
+      // Check if square is light or dark (chess board alternating pattern)
+      const isLightSquare = (row + col) % 2 === 0;
+      
+      // Adjust color based on whether it's a light or dark square
+      const adjustedColor = new THREE.Color(color);
+      
+      // Create a material that will blend with the underlying square color
+      const baseMaterial = new THREE.MeshStandardMaterial({ // Changed from MeshBasicMaterial
+        color: adjustedColor,
+        transparent: true,
+        opacity: 0.65,
+        metalness: 0.3,
+        roughness: 0.7
+      });
+      
+      const baseHighlight = new THREE.Mesh(baseGeometry, baseMaterial);
+      baseHighlight.position.set(0, 0.11, 0); // Just above the board surface
+      baseHighlight.userData = {
+        type: 'highlight_base',
+        row,
+        col,
+        isSelectedPiece,
+        isCapture
+      };
+      
+      highlightGroup.add(baseHighlight);
       
       // Add the highlight group to the scene
       sceneRef.current.add(highlightGroup);
@@ -1208,26 +1206,27 @@ const Chessboard = () => {
       // Add each part to the array for easier raycasting
       highlightGroup.children.forEach(child => {
         newHighlightMeshes.push(child);
+        // Add debug name for easier identification
         child.name = `highlight_${row}_${col}_${child.userData.type}`;
       });
       
       // Add debug name for the group
       highlightGroup.name = `highlightGroup_${row}_${col}`;
       
-      console.log(`Created chess-style highlight at ${row},${col} with ${highlightGroup.children.length} parts`);
+      console.log(`Created highlight at ${row},${col} with ${highlightGroup.children.length} parts`);
     };
     
     // Add highlight for selected piece
     if (selectedPiece) {
       const { row, col } = selectedPiece;
-      createChessHighlight(row, col, 0x0088ff, true, false); // Blue border for selected piece
+      create3DHighlight(row, col, 0x0088ff, true, false); // Blue for selected piece
     }
     
     // Add highlights for valid moves
     moves.forEach(([row, col]) => {
       const isCapture = movementTracker.current[row][col] !== null;
       const color = isCapture ? 0xff0000 : 0x00ff00;  // Red for captures, green for moves
-      createChessHighlight(row, col, color, false, isCapture);
+      create3DHighlight(row, col, color, false, isCapture);
     });
     
     // Store references to highlight meshes in both ref and state
@@ -1947,7 +1946,7 @@ const Chessboard = () => {
           </div>
           
           {/* AI Thinking Indicator */}
-          {isAiThinking && currentPlayer === aiColor && (
+        {isAiThinking && currentPlayer === aiColor && (
             <div className="flex items-center space-x-2 ml-3 pl-3 border-l border-slate-600">
               <div className="flex space-x-1">
                 <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
@@ -1991,8 +1990,8 @@ const Chessboard = () => {
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
                 <span className="text-sm text-green-400 font-medium">Active</span>
-              </div>
-            </div>
+          </div>
+        </div>
             <div className="mt-2 text-xs text-slate-400">
               Playing as: <span className="font-medium text-white">{aiColor === COLORS.WHITE ? 'White' : 'Black'}</span>
             </div>
@@ -2086,7 +2085,7 @@ const Chessboard = () => {
         {/* Move List Container */}
         <div className="bg-slate-800/30 rounded-lg border border-slate-600/30 overflow-hidden">
           <div className="max-h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
-            {moveHistory.length === 0 ? (
+          {moveHistory.length === 0 ? (
               <div className="p-6 text-center">
                 <div className="w-16 h-16 mx-auto mb-3 bg-slate-700/50 rounded-full flex items-center justify-center">
                   <span className="text-2xl text-slate-400">♟</span>
@@ -2096,20 +2095,20 @@ const Chessboard = () => {
               </div>
             ) : (
               <div className="p-3">
-                {/* Group moves in pairs by turn number */}
-                {Array.from({ length: Math.ceil(moveHistory.length / 2) }, (_, i) => {
-                  // Get white and black moves for this turn
-                  const whiteMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.WHITE);
-                  const blackMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.BLACK);
-                  
-                  return (
+              {/* Group moves in pairs by turn number */}
+              {Array.from({ length: Math.ceil(moveHistory.length / 2) }, (_, i) => {
+                // Get white and black moves for this turn
+                const whiteMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.WHITE);
+                const blackMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.BLACK);
+                
+                return (
                     <div key={i} className="mb-2 last:mb-0">
                       {/* Turn Number */}
                       <div className="flex items-center mb-1">
                         <span className="text-slate-400 text-sm font-medium w-8 text-right mr-3">{i + 1}.</span>
-                        <div className="flex-1 grid grid-cols-2 gap-2">
+                    <div className="flex-1 grid grid-cols-2 gap-2">
                           {/* White Move */}
-                          {whiteMove && (
+                    {whiteMove && (
                             <div className={`p-2 rounded-lg transition-all duration-200 ${
                               whiteMove.isCheckmate 
                                 ? 'bg-red-500/20 border border-red-500/30' 
@@ -2131,15 +2130,15 @@ const Chessboard = () => {
                                     : 'text-white'
                                 }`}>
                                   {whiteMove.notation}
-                                </span>
+                      </span>
                                 {whiteMove.isCheckmate && <span className="text-red-400 text-xs">#</span>}
                                 {whiteMove.isCheck && !whiteMove.isCheckmate && <span className="text-yellow-400 text-xs">+</span>}
                               </div>
                             </div>
-                          )}
+                    )}
                           
                           {/* Black Move */}
-                          {blackMove && (
+                    {blackMove && (
                             <div className={`p-2 rounded-lg transition-all duration-200 ${
                               blackMove.isCheckmate 
                                 ? 'bg-red-500/20 border border-red-500/30' 
@@ -2161,20 +2160,20 @@ const Chessboard = () => {
                                     : 'text-white'
                                 }`}>
                                   {blackMove.notation}
-                                </span>
+                      </span>
                                 {blackMove.isCheckmate && <span className="text-red-400 text-xs">#</span>}
                                 {blackMove.isCheck && !blackMove.isCheckmate && <span className="text-yellow-400 text-xs">+</span>}
                               </div>
                             </div>
-                          )}
+                    )}
                         </div>
-                      </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
         </div>
         
         {/* Legend */}

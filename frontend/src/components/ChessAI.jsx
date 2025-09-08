@@ -78,6 +78,16 @@ const POSITION_BONUSES = {
 const evaluateBoard = (board, color) => {
   let score = 0;
   
+  // Check for checkmate first (highest priority)
+  const opponentColor = color === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
+  if (isCheckmate(board, opponentColor)) {
+    return 10000; // We win
+  }
+  
+  if (isCheckmate(board, color)) {
+    return -10000; // We lose
+  }
+  
   // Count material and position value
   for (let row = 0; row < 8; row++) {
     for (let col = 0; col < 8; col++) {
@@ -107,22 +117,29 @@ const evaluateBoard = (board, color) => {
     }
   }
   
-  // Check for checkmate (highest priority)
-  if (isCheckmate(board, color === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE)) {
-    return 10000; // We win
-  }
-  
-  if (isCheckmate(board, color)) {
-    return -10000; // We lose
-  }
-  
   // Check for check
-  if (isKingInCheck(board, color === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE)) {
+  if (isKingInCheck(board, opponentColor)) {
     score += 50; // Bonus for putting opponent in check
   }
   
   if (isKingInCheck(board, color)) {
     score -= 50; // Penalty for being in check
+  }
+  
+  // Note: Mobility calculation removed to avoid potential recursion issues
+  // The AI will still be strong based on material, position, and tactical evaluation
+  
+  // Add center control bonus
+  const centerSquares = [[3, 3], [3, 4], [4, 3], [4, 4]];
+  for (const [row, col] of centerSquares) {
+    const piece = board[row][col];
+    if (piece) {
+      if (piece.color === color) {
+        score += 5; // Bonus for controlling center
+      } else {
+        score -= 5; // Penalty for opponent controlling center
+      }
+    }
   }
   
   return score;
@@ -206,12 +223,15 @@ export const findBestMove = (board, color, difficulty = 'medium') => {
   if (difficulty === 'easy') {
     depth = 1;
   } else if (difficulty === 'hard') {
-    depth = 3;
+    depth = 4; // Increased depth for hard difficulty
   }
   
   let bestMove = null;
-  let bestScore = color === COLORS.WHITE ? -Infinity : Infinity;
+  let bestScore = -Infinity; // Always maximize from AI's perspective
   const isMaximizing = true;
+  
+  // Collect all possible moves with their scores
+  const allMoves = [];
   
   // For each piece of our color
   for (let row = 0; row < 8; row++) {
@@ -236,47 +256,45 @@ export const findBestMove = (board, color, difficulty = 'medium') => {
           color
         );
         
-        // Update best move if this is better
-        if ((color === COLORS.WHITE && score > bestScore) || 
-            (color === COLORS.BLACK && score < bestScore)) {
-          bestScore = score;
-          bestMove = {
-            from: [row, col],
-            to: [toRow, toCol],
-            piece: piece,
-            score: score
-          };
-        }
-      }
-    }
-  }
-  
-  // Add a small random factor for easy difficulty to make it less predictable
-  if (difficulty === 'easy' && Math.random() < 0.3) {
-    // Find all possible moves
-    const allMoves = [];
-    for (let row = 0; row < 8; row++) {
-      for (let col = 0; col < 8; col++) {
-        const piece = board[row][col];
-        if (!piece || piece.color !== color) continue;
+        const move = {
+          from: [row, col],
+          to: [toRow, toCol],
+          piece: piece,
+          score: score
+        };
         
-        const moves = getValidMoves(board, row, col);
-        for (const [toRow, toCol] of moves) {
-          allMoves.push({
-            from: [row, col],
-            to: [toRow, toCol],
-            piece: piece
-          });
+        allMoves.push(move);
+        
+        // Update best move if this is better
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = move;
         }
       }
     }
+  }
+  
+  // If no moves found, return null
+  if (allMoves.length === 0) {
+    return null;
+  }
+  
+  // For easy difficulty, add some randomness but still prefer good moves
+  if (difficulty === 'easy') {
+    // Sort moves by score (best first)
+    allMoves.sort((a, b) => b.score - a.score);
     
-    // Pick a random move 30% of the time for easy difficulty
-    if (allMoves.length > 0) {
-      const randomMove = allMoves[Math.floor(Math.random() * allMoves.length)];
-      return randomMove;
+    // 50% chance to pick the best move, 30% chance for top 3, 20% chance for any move
+    const random = Math.random();
+    if (random < 0.5) {
+      return allMoves[0]; // Best move
+    } else if (random < 0.8 && allMoves.length >= 3) {
+      return allMoves[Math.floor(Math.random() * 3)]; // Top 3 moves
+    } else {
+      return allMoves[Math.floor(Math.random() * allMoves.length)]; // Any move
     }
   }
   
+  // For medium and hard, always return the best move
   return bestMove;
 };
