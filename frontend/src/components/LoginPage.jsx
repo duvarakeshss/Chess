@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { signInWithGoogle, signInWithEmail } from '../firebase/auth';
 import toast from 'react-hot-toast';
 import { FaEnvelope, FaLock, FaEye, FaEyeSlash } from 'react-icons/fa';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const LoginPage = ({ onLoginSuccess }) => {
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -91,12 +92,15 @@ const LoginPage = ({ onLoginSuccess }) => {
         <div className="relative flex h-full flex-col">
           {/* Header */}
           <header className="flex items-center justify-between whitespace-nowrap px-4 sm:px-6 lg:px-10 py-4">
-            <div className="flex items-center gap-2 sm:gap-3 text-white">
+            <button
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 sm:gap-3 text-white hover:text-gray-300 transition-colors"
+            >
               <svg className="h-6 w-6 sm:h-8 sm:w-8 text-[#1717cf]" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM8 12l2.5-4h3L11 12l2.5 4h-3L8 12z"></path>
               </svg>
               <h1 className="text-lg sm:text-xl lg:text-2xl font-bold tracking-tight">ChessMaster</h1>
-            </div>
+            </button>
             
             <nav className="hidden md:flex items-center gap-4 lg:gap-8 text-sm font-medium text-gray-300">
               <span>Play</span>

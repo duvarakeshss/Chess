@@ -21,7 +21,7 @@ const PromotionPage = () => {
         --primary-color: #6366f1;
       }
       .btn-primary {
-        @apply bg-[var(--primary-color)] hover:bg-indigo-500 transition-all duration-300;
+        @apply bg-[#6366f1] hover:bg-[#4f46e5] transition-all duration-300 shadow-lg shadow-indigo-500;
       }
       .btn-secondary {
         @apply bg-[#242447] hover:bg-[#343465] transition-all duration-300;
@@ -69,9 +69,13 @@ const PromotionPage = () => {
         </style>
       </head>
       <body className="bg-[#111122]">
+        <video className="fixed inset-0 w-screen h-screen object-cover opacity-30 -z-10" autoPlay loop muted playsInline>
+          <source src="https://cdn.pixabay.com/video/2018/11/21/19459-303877310_large.mp4" type="video/mp4" />
+          Your browser does not support the video tag.
+        </video>
         <div className="relative flex size-full min-h-screen flex-col text-white dark group/design-root overflow-x-hidden" style={{ fontFamily: '"Space Grotesk", "Noto Sans", sans-serif' }}>
           <div className="layout-container flex h-full grow flex-col">
-            <header className="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#242447]/50 bg-[#111122]/80 px-10 py-4 backdrop-blur-sm">
+            <header className="sticky top-0 z-50 flex items-center justify-between whitespace-nowrap border-b border-solid border-b-[#242447]/30 bg-[#111122]/40 px-10 py-4 backdrop-blur-sm">
               <div className="flex items-center gap-4">
                 <div className="size-8 text-[var(--primary-color)] logo-pulse">
                   <svg className="h-6 w-6 sm:h-8 sm:w-8 text-[#1717cf]" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -86,12 +90,12 @@ const PromotionPage = () => {
                 </div>
                 <div className="flex gap-3">
                   <Link to="/signup">
-                    <button className="flex min-w-[100px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-md h-12 px-6 btn-primary text-white text-sm font-bold leading-normal tracking-[0.015em] shadow-lg shadow-indigo-500/30 transform hover:scale-105 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/50">
+                    <button className="flex min-w-[100px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-md h-12 px-6 btn-primary text-white text-sm font-bold leading-normal tracking-[0.015em] transform hover:scale-105 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500">
                       <span className="truncate">Sign Up</span>
                     </button>
                   </Link>
                   <Link to="/login">
-                    <button className="flex min-w-[100px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-md h-12 px-6 btn-primary text-white text-sm font-bold leading-normal tracking-[0.015em] shadow-lg shadow-indigo-500/30 transform hover:scale-105 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500/50">
+                    <button className="flex min-w-[100px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-md h-12 px-6 btn-primary text-white text-sm font-bold leading-normal tracking-[0.015em] transform hover:scale-105 transition-all duration-300 hover:shadow-xl hover:shadow-indigo-500">
                       <span className="truncate">Log In</span>
                     </button>
                   </Link>
@@ -100,24 +104,23 @@ const PromotionPage = () => {
             </header>
             <main className="flex flex-1 flex-col">
               <div className="flex flex-1 justify-center py-5 relative">
-                <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1580541832626-2a7131ee809f?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D')] bg-cover bg-center opacity-10"></div>
                 <div className="layout-content-container flex flex-col max-w-6xl flex-1 items-center justify-center text-center px-4 relative z-10">
                   <div className="flex flex-col gap-6 items-center">
                     <h1 className="text-white text-6xl font-black leading-tight tracking-tighter sm:text-7xl slide-up">Master the Game of Kings</h1>
                     <p className="text-gray-300 text-lg sm:text-xl max-w-3xl fade-in" style={{ animationDelay: '0.3s' }}>Challenge your mind and strategy with ChessMaster. Play against friends, compete in tournaments, and learn from the best. Join our community of chess enthusiasts today!</p>
                     <Link to="/signup">
-                      <button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-md h-14 px-8 btn-primary text-white text-lg font-bold leading-normal tracking-[0.015em] shadow-xl shadow-indigo-500/30 transform hover:scale-105 transition-transform duration-300 fade-in" style={{ animationDelay: '0.6s' }}>
+                      <button className="flex min-w-[84px] max-w-[480px] cursor-pointer items-center justify-center overflow-hidden rounded-md h-14 px-8 btn-primary text-white text-lg font-bold leading-normal tracking-[0.015em] transform hover:scale-105 transition-transform duration-300 fade-in" style={{ animationDelay: '0.6s' }}>
                         <span className="truncate">Play Now for Free</span>
                       </button>
                     </Link>
                   </div>
                 </div>
               </div>
-              <div id="features" className="bg-[#1a1a32] py-20 px-10">
+              <div id="features" className="bg-[#1a1a32]/60 py-20 px-10">
                 <div className="max-w-6xl mx-auto">
                   <div className="text-center mb-12">
                     <h2 className="text-white text-4xl font-black leading-tight tracking-[-0.033em] slide-up">Why Choose ChessMaster?</h2>
-                    <p className="text-[#9393c8] text-lg font-normal leading-normal max-w-3xl mx-auto mt-4 fade-in" style={{ animationDelay: '0.2s' }}>Chessmaster offers a unique and engaging chess experience for players of all levels.</p>
+                    <p className="text-[#9393c8] text-lg font-normal leading-normal max-w-3xl mx-auto mt-4 fade-in" style={{ animationDelay: '0.2s' }}>Experience the ultimate chess platform with AI opponents, stunning 3D visuals, and comprehensive game analysis.</p>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                     <div className="flex flex-col gap-4 rounded-lg bg-[#111122] p-6 text-center items-center ring-1 ring-[#343465] hover:ring-[var(--primary-color)] transition-all duration-300 transform hover:-translate-y-1 feature-card">
@@ -127,8 +130,8 @@ const PromotionPage = () => {
                         </svg>
                       </div>
                       <div className="flex flex-col gap-2">
-                        <h3 className="text-white text-xl font-bold leading-tight">Connect with Players Worldwide</h3>
-                        <p className="text-[#9393c8] text-sm font-normal leading-normal">Join a global community of chess players. Challenge friends or find opponents of similar skill levels.</p>
+                        <h3 className="text-white text-xl font-bold leading-tight">Challenge AI Opponents</h3>
+                        <p className="text-[#9393c8] text-sm font-normal leading-normal">Test your skills against intelligent AI with multiple difficulty levels from beginner to expert.</p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-4 rounded-lg bg-[#111122] p-6 text-center items-center ring-1 ring-[#343465] hover:ring-[var(--primary-color)] transition-all duration-300 transform hover:-translate-y-1 feature-card">
@@ -138,8 +141,8 @@ const PromotionPage = () => {
                         </svg>
                       </div>
                       <div className="flex flex-col gap-2">
-                        <h3 className="text-white text-xl font-bold leading-tight">Compete in Exciting Tournaments</h3>
-                        <p className="text-[#9393c8] text-sm font-normal leading-normal">Participate in daily and weekly tournaments with exciting prizes and leaderboards.</p>
+                        <h3 className="text-white text-xl font-bold leading-tight">Immersive 3D Experience</h3>
+                        <p className="text-[#9393c8] text-sm font-normal leading-normal">Enjoy stunning 3D chess pieces and board with smooth animations and realistic gameplay.</p>
                       </div>
                     </div>
                     <div className="flex flex-col gap-4 rounded-lg bg-[#111122] p-6 text-center items-center ring-1 ring-[#343465] hover:ring-[var(--primary-color)] transition-all duration-300 transform hover:-translate-y-1 feature-card">
@@ -149,15 +152,15 @@ const PromotionPage = () => {
                         </svg>
                       </div>
                       <div className="flex flex-col gap-2">
-                        <h3 className="text-white text-xl font-bold leading-tight">Learn and Improve Your Skills</h3>
-                        <p className="text-[#9393c8] text-sm font-normal leading-normal">Access tutorials, puzzles, and analysis tools to enhance your chess knowledge and strategy.</p>
+                        <h3 className="text-white text-xl font-bold leading-tight">Complete Game Analysis</h3>
+                        <p className="text-[#9393c8] text-sm font-normal leading-normal">Track your moves, review game history, and analyze strategies with detailed move notation.</p>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             </main>
-            <footer className="bg-[#111122] border-t border-[#242447]/50">
+            <footer className="bg-[#111122]/40 border-t border-[#242447]/30">
               <div className="max-w-6xl mx-auto px-5 py-10">
                 <div className="flex justify-center">
                   <p className="text-[#9393c8] text-sm font-normal leading-normal">© 2025 ChessMaster. All rights reserved.</p>
