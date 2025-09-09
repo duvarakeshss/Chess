@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
@@ -16,9 +16,10 @@ import {
 } from './chesslogic';
 import { findBestMove } from './ChessAI';
 
-const Chessboard = () => {
+const Chessboard = forwardRef(({ multiplayer = false, aiEnabled = false, aiDifficulty = 'medium', onMoveHistoryUpdate, onCurrentPlayerChange }, ref) => {
   const mountRef = useRef(null);
   const sceneRef = useRef(null);
+  const boardGroupRef = useRef(null); // Reference to the board group for rotation
   const piecesRef = useRef(new Map()); // Map to track piece meshes
   const boardStateRef = useRef(createInitialBoard()); // Add ref to track board state
   const [boardState, setBoardState] = useState(createInitialBoard());
@@ -39,10 +40,8 @@ const Chessboard = () => {
   const [showWinnerPopup, setShowWinnerPopup] = useState(false);
   const [winner, setWinner] = useState(null);
   
-  // Add AI player state
-  const [aiEnabled, setAiEnabled] = useState(false);
+  // Add AI player state - disabled in multiplayer mode
   const [aiColor] = useState(COLORS.BLACK); // AI is always black
-  const [aiDifficulty, setAiDifficulty] = useState('medium');
   const [isAiThinking, setIsAiThinking] = useState(false);
   
   // Raycaster for detecting clicks on the board
@@ -106,163 +105,12 @@ const Chessboard = () => {
     // Clear any previous content
     mountRef.current.innerHTML = '';
 
-    // Set up scene with animated aesthetic light background
+    // Set up scene with dark background matching the app theme
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x1e3a8a); // Deep blue fallback color
-    
-    // Create animated light background
-    const canvas = document.createElement('canvas');
-    canvas.width = 1024;
-    canvas.height = 1024;
-    const context = canvas.getContext('2d');
-    
-    // Beautiful blue color palette
-    const lightColors = [
-      { r: 30, g: 58, b: 138, name: 'Deep Blue' },         // Deep ocean blue
-      { r: 59, g: 130, b: 246, name: 'Bright Blue' },      // Bright blue
-      { r: 96, g: 165, b: 250, name: 'Sky Blue' },         // Light sky blue
-      { r: 147, g: 197, b: 253, name: 'Powder Blue' },     // Powder blue
-      { r: 191, g: 219, b: 254, name: 'Light Blue' },      // Very light blue
-      { r: 37, g: 99, b: 235, name: 'Royal Blue' },        // Royal blue
-      { r: 79, g: 70, b: 229, name: 'Indigo Blue' },       // Indigo blue
-      { r: 129, g: 140, b: 248, name: 'Periwinkle' }       // Periwinkle blue
-    ];
-    
-    let time = 0;
-    let currentColorIndex = 0;
-    let nextColorIndex = 1;
-    
-    const updateBackground = () => {
-      time += 0.003; // Very gentle animation speed
-      
-      // Clear canvas with subtle fade
-      context.fillStyle = 'rgba(30, 58, 138, 0.02)';
-      context.fillRect(0, 0, 1024, 1024);
-      
-      // Smooth color transition
-      const t = (Math.sin(time * 0.3) + 1) / 2;
-      const currentColor = lightColors[currentColorIndex];
-      const nextColor = lightColors[nextColorIndex];
-      
-      // Gentle easing function
-      const easeInOut = t * t * (3 - 2 * t);
-      const r = Math.floor(currentColor.r + (nextColor.r - currentColor.r) * easeInOut);
-      const g = Math.floor(currentColor.g + (nextColor.g - currentColor.g) * easeInOut);
-      const b = Math.floor(currentColor.b + (nextColor.b - currentColor.b) * easeInOut);
-      
-      // Create soft radial gradient from center
-      const centerX = 512 + Math.sin(time * 0.05) * 30;
-      const centerY = 512 + Math.cos(time * 0.05) * 30;
-      
-      const gradient = context.createRadialGradient(centerX, centerY, 0, centerX, centerY, 600);
-      gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0.9)`);
-      gradient.addColorStop(0.3, `rgba(${Math.floor(r * 0.9)}, ${Math.floor(g * 0.9)}, ${Math.floor(b * 0.9)}, 0.8)`);
-      gradient.addColorStop(0.7, `rgba(${Math.floor(r * 0.8)}, ${Math.floor(g * 0.8)}, ${Math.floor(b * 0.8)}, 0.6)`);
-      gradient.addColorStop(1, `rgba(${Math.floor(r * 0.7)}, ${Math.floor(g * 0.7)}, ${Math.floor(b * 0.7)}, 0.4)`);
-      
-    context.fillStyle = gradient;
-      context.fillRect(0, 0, 1024, 1024);
-      
-      // Add floating light orbs
-      for (let i = 0; i < 8; i++) {
-        const angle = (time * 0.1 + i * 0.8) % (Math.PI * 2);
-        const radius = 200 + Math.sin(time * 0.1 + i) * 100;
-        const x = centerX + Math.cos(angle) * radius;
-        const y = centerY + Math.sin(angle) * radius;
-        const size = 2 + Math.sin(time * 0.8 + i) * 1.5;
-        const alpha = 0.3 + Math.sin(time * 1.2 + i) * 0.2;
-        
-        // Create soft blue glow
-        const glowGradient = context.createRadialGradient(x, y, 0, x, y, size * 4);
-        glowGradient.addColorStop(0, `rgba(147, 197, 253, ${alpha})`);
-        glowGradient.addColorStop(0.3, `rgba(147, 197, 253, ${alpha * 0.6})`);
-        glowGradient.addColorStop(0.7, `rgba(147, 197, 253, ${alpha * 0.2})`);
-        glowGradient.addColorStop(1, `rgba(147, 197, 253, 0)`);
-        
-        context.fillStyle = glowGradient;
-        context.beginPath();
-        context.arc(x, y, size * 4, 0, Math.PI * 2);
-        context.fill();
-        
-        // Core light
-        context.fillStyle = `rgba(191, 219, 254, ${alpha * 0.8})`;
-        context.beginPath();
-        context.arc(x, y, size, 0, Math.PI * 2);
-        context.fill();
-      }
-      
-      // Add subtle geometric patterns
-      for (let i = 0; i < 4; i++) {
-        const angle = time * 0.02 + i * Math.PI / 2;
-        const x = centerX + Math.cos(angle) * 300;
-        const y = centerY + Math.sin(angle) * 300;
-        const size = 6 + Math.sin(time * 0.3 + i) * 3;
-        const rotation = time * 0.02 + i;
-        
-        context.save();
-        context.translate(x, y);
-        context.rotate(rotation);
-        
-        // Create soft diamond shape
-        context.fillStyle = `rgba(147, 197, 253, 0.15)`;
-        context.beginPath();
-        context.moveTo(0, -size);
-        context.lineTo(size, 0);
-        context.lineTo(0, size);
-        context.lineTo(-size, 0);
-        context.closePath();
-        context.fill();
-        
-        // Subtle border
-        context.strokeStyle = `rgba(191, 219, 254, 0.2)`;
-        context.lineWidth = 1;
-        context.stroke();
-        
-        context.restore();
-      }
-      
-      // Add gentle wave patterns
-      for (let i = 0; i < 3; i++) {
-        const waveY = 200 + i * 300;
-        const amplitude = 20 + Math.sin(time * 0.1 + i) * 10;
-        const frequency = 0.02 + i * 0.01;
-        
-        context.strokeStyle = `rgba(147, 197, 253, 0.15)`;
-        context.lineWidth = 1.5;
-        context.beginPath();
-        
-        for (let x = 0; x < 1024; x += 2) {
-          const y = waveY + Math.sin(x * frequency + time * 0.1) * amplitude;
-          if (x === 0) {
-            context.moveTo(x, y);
-          } else {
-            context.lineTo(x, y);
-          }
-        }
-        context.stroke();
-      }
-      
-      // Update texture
-      texture.needsUpdate = true;
-      
-      // Change color every 8 seconds for very gentle transitions
-      if (Math.floor(time * 0.125) > Math.floor((time - 0.003) * 0.125)) {
-        currentColorIndex = nextColorIndex;
-        nextColorIndex = (nextColorIndex + 1) % lightColors.length;
-      }
-      
-      requestAnimationFrame(updateBackground);
-    };
-    
-    const texture = new THREE.CanvasTexture(canvas);
-    texture.mapping = THREE.EquirectangularReflectionMapping;
-    scene.background = texture;
-    
-    // Start the animation
-    updateBackground();
+    scene.background = new THREE.Color(0x111122); // Dark blue-gray background matching TwoPlayerGame
     
     sceneRef.current = scene;
-    console.log('Scene created with animated aesthetic light background');
+    console.log('Scene created with dark theme background');
 
     // Set up camera
     const camera = new THREE.PerspectiveCamera(
@@ -271,18 +119,135 @@ const Chessboard = () => {
       0.1,
       1000
     );
-    camera.position.set(0, 15, 15);  // Better angle for viewing the board
+    camera.position.set(0, 25, 5);  // Adjusted top view position for better visibility
     camera.lookAt(0, 0, 0);
-    console.log('Camera set up');
+    console.log('Camera set up for top view');
 
-    // Set up renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    mountRef.current.appendChild(renderer.domElement);
-    console.log('Renderer added to DOM');
+    // Check WebGL support
+    const checkWebGLSupport = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        return !!(window.WebGLRenderingContext && canvas.getContext('webgl'));
+      } catch (e) {
+        return false;
+      }
+    };
+
+    if (!checkWebGLSupport()) {
+      console.warn('WebGL not supported, showing fallback UI');
+
+      // Create fallback UI
+      const fallbackDiv = document.createElement('div');
+      fallbackDiv.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        color: white;
+        font-family: Arial, sans-serif;
+        text-align: center;
+        padding: 20px;
+      `;
+
+      fallbackDiv.innerHTML = `
+        <div style="font-size: 4rem; margin-bottom: 20px;">⚠️</div>
+        <h2 style="font-size: 2rem; margin-bottom: 10px; color: #ff6b6b;">WebGL Not Supported</h2>
+        <p style="font-size: 1.1rem; margin-bottom: 20px; color: #a0a0a0;">
+          Your browser or device doesn't support WebGL, which is required for the 3D chess board.
+        </p>
+        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+          <p style="margin: 0; font-size: 0.9rem;">
+            <strong>Solutions:</strong><br>
+            • Use a modern browser (Chrome, Firefox, Safari, Edge)<br>
+            • Enable WebGL in browser settings<br>
+            • Update your browser to the latest version<br>
+            • Try on a different device
+          </p>
+        </div>
+        <button onclick="window.location.reload()" style="
+          background: #4CAF50;
+          color: white;
+          border: none;
+          padding: 12px 24px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 1rem;
+          transition: background 0.3s;
+        " onmouseover="this.style.background='#45a049'" onmouseout="this.style.background='#4CAF50'">
+          Refresh Page
+        </button>
+      `;
+
+      mountRef.current.appendChild(fallbackDiv);
+      return; // Exit early if WebGL is not supported
+    }
+
+    // Set up renderer with error handling
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: "high-performance",
+        failIfMajorPerformanceCaveat: false
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Limit pixel ratio for performance
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      mountRef.current.appendChild(renderer.domElement);
+      console.log('Renderer added to DOM');
+    } catch (error) {
+      console.error('Failed to create WebGL renderer:', error);
+
+      // Create fallback UI
+      const fallbackDiv = document.createElement('div');
+      fallbackDiv.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+        color: white;
+        font-family: Arial, sans-serif;
+        text-align: center;
+        padding: 20px;
+      `;
+
+      fallbackDiv.innerHTML = `
+        <div style="font-size: 4rem; margin-bottom: 20px;">⚠️</div>
+        <h2 style="font-size: 2rem; margin-bottom: 10px; color: #ff6b6b;">WebGL Error</h2>
+        <p style="font-size: 1.1rem; margin-bottom: 20px; color: #a0a0a0;">
+          Failed to initialize WebGL renderer. This might be due to hardware limitations or browser settings.
+        </p>
+        <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+          <p style="margin: 0; font-size: 0.9rem;">
+            <strong>Troubleshooting:</strong><br>
+            • Enable hardware acceleration in browser settings<br>
+            • Update your graphics drivers<br>
+            • Try a different browser (Chrome, Firefox, Edge)<br>
+            • Restart your browser
+          </p>
+        </div>
+        <button onclick="window.location.reload()" style="
+          background: #4CAF50;
+          color: white;
+          border: none;
+          padding: 12px 24px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-size: 1rem;
+          transition: background 0.3s;
+        " onmouseover="this.style.background='#45a049'" onmouseout="this.style.background='#4CAF50'">
+          Refresh Page
+        </button>
+      `;
+
+      mountRef.current.appendChild(fallbackDiv);
+      return; // Exit early if WebGL fails
+    }
 
     // Add lights
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);  // Increased intensity for better visibility
@@ -342,13 +307,16 @@ const Chessboard = () => {
           console.log(gltf);
           
           // Add the model to the scene
+          const boardGroup = new THREE.Group();
+          boardGroupRef.current = boardGroup; // Store reference for rotation
+          
           const model = gltf.scene;
           
           // Scale the model to a good size
           model.scale.set(26, 26, 26);
           
           // Position the model - adjusted to align with the placed pieces
-          model.position.set(0.0, 0.0, 0.0);
+          model.position.set(0.0, -1.0, 0.0); // Lower the board slightly for better top view
           
           // Apply shadows to all meshes in the model
           model.traverse((node) => {
@@ -359,11 +327,15 @@ const Chessboard = () => {
             }
           });
           
-          scene.add(model);
+          boardGroup.add(model);
+          scene.add(boardGroup);
           console.log('Added model to scene');
           
           // Place chess pieces
           placePieces(boardState);
+          
+          // Set initial board rotation for white player
+          boardGroup.rotation.y = 0;
         },
         (progress) => {
           const percent = Math.round((progress.loaded / progress.total) * 100);
@@ -384,6 +356,7 @@ const Chessboard = () => {
     function createProgrammaticBoard() {
       console.log('Creating programmatic board');
       const boardGroup = new THREE.Group();
+      boardGroupRef.current = boardGroup; // Store reference for rotation
       scene.add(boardGroup);
 
       const boardSize = 8;
@@ -409,7 +382,7 @@ const Chessboard = () => {
           // Position each square
           const posX = (x * squareSize) - boardOffset + (squareSize / 2);
           const posZ = (z * squareSize) - boardOffset + (squareSize / 2);
-          square.position.set(posX, 0, posZ);
+          square.position.set(posX, -1.0, posZ); // Lower the board for better top view
           
           // Store the board coordinates as userData for raycasting
           square.userData = { type: 'square', row: z, col: x };
@@ -435,16 +408,20 @@ const Chessboard = () => {
       
       // Place chess pieces
       placePieces(boardState);
+      
+      // Set initial board rotation for white player
+      boardGroup.rotation.y = 0;
     }
 
     // Add OrbitControls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.minDistance = 5;
-    controls.maxDistance = 30;  // Allow zooming out further
-    controls.maxPolarAngle = Math.PI / 2;
-    console.log('Controls added');
+    controls.minDistance = 10;
+    controls.maxDistance = 40;  // Allow zooming out further for top view
+    controls.maxPolarAngle = Math.PI / 2.2;  // Allow slight tilting for better viewing
+    controls.minPolarAngle = Math.PI / 4;   // Prevent going too low
+    console.log('Controls added for top view');
 
     // Handle mouse move for raycasting
     const handleMouseMove = (event) => {
@@ -539,8 +516,16 @@ const Chessboard = () => {
           
           // Calculate row and column from intersection point
           // Adjusting for board position and orientation
-          const col = Math.floor((point.x + boardOffset) / squareSize);
-          const row = Math.floor((point.z + boardOffset) / squareSize);
+          // Add full square size offset to correct for 2-position left selection
+          let col = Math.floor((point.x + boardOffset + squareSize) / squareSize);
+          let row = Math.floor((point.z + boardOffset + squareSize) / squareSize);
+          
+          // Handle board rotation - when rotated 180 degrees, coordinates are flipped
+          if (boardGroupRef.current && boardGroupRef.current.rotation.y === Math.PI) {
+            col = 7 - col; // Flip column (0->7, 1->6, etc.)
+            row = 7 - row; // Flip row (0->7, 1->6, etc.)
+            console.log(`Board is rotated - flipped coordinates to row ${row}, col ${col}`);
+          }
           
           console.log(`Clicked on board at row ${row}, col ${col}`);
           
@@ -872,11 +857,16 @@ const Chessboard = () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('click', handleMouseClick);
       window.removeEventListener('touchstart', handleMouseClick);
-      
-      if (mountRef.current) {
-        mountRef.current.removeChild(renderer.domElement);
+
+      if (mountRef.current && renderer) {
+        try {
+          mountRef.current.removeChild(renderer.domElement);
+          renderer.dispose();
+        } catch (error) {
+          console.warn('Error during renderer cleanup:', error);
+        }
       }
-      
+
       // Dispose geometries and materials
       scene.traverse((object) => {
         if (object.geometry) object.geometry.dispose();
@@ -931,13 +921,13 @@ const Chessboard = () => {
     console.log('Initial movement tracker state:', movementTracker.current);
   }, []);
   
-  // Effect to trigger AI move when it's AI's turn
+  // Effect to trigger AI move when it's AI's turn - disabled in multiplayer mode
   useEffect(() => {
-    // If AI is enabled and it's AI's turn, make a move
-    if (aiEnabled && currentPlayer === aiColor && !showWinnerPopup) {
+    // If AI is enabled and it's AI's turn, make a move (but not in multiplayer mode)
+    if (aiEnabled && currentPlayer === aiColor && !showWinnerPopup && !multiplayer) {
       makeAiMove();
     }
-  }, [aiEnabled, aiColor, currentPlayer]);
+  }, [aiEnabled, aiColor, currentPlayer, multiplayer]);
 
   // Log movement tracker whenever it changes
   const logMovementTracker = () => {
@@ -1013,7 +1003,7 @@ const Chessboard = () => {
           // Position the piece
           pieceMesh.position.set(
             worldX,
-            0.8, // Height above board
+            -0.2, // Height above lowered board (-1.0 + 0.8)
             worldZ
           );
           
@@ -1106,7 +1096,7 @@ const Chessboard = () => {
       
       // Create a group to hold all highlight elements for this square
       const highlightGroup = new THREE.Group();
-      highlightGroup.position.set(worldX, 0, worldZ);
+      highlightGroup.position.set(worldX, -1.0, worldZ); // Position on lowered board
       highlightGroup.userData = {
         type: 'highlight_group',
         row,
@@ -1330,6 +1320,18 @@ const Chessboard = () => {
       // Update the state to match the ref
       setCurrentPlayer(nextPlayer);
       
+      // Rotate board for the new player (flip the view)
+      if (boardGroupRef.current) {
+        const rotationAngle = nextPlayer === COLORS.WHITE ? 0 : Math.PI;
+        boardGroupRef.current.rotation.y = rotationAngle;
+        console.log(`Rotated board for ${nextPlayer} player (angle: ${rotationAngle})`);
+      }
+      
+      // Notify parent component of current player change
+      if (onCurrentPlayerChange) {
+        onCurrentPlayerChange(nextPlayer);
+      }
+      
       // Check for check, checkmate, or stalemate using the movement tracker
       const isInCheck = isKingInCheck(newMovementTracker, nextPlayer);
       const isInCheckmate = isInCheck && isCheckmate(newMovementTracker, nextPlayer);
@@ -1364,6 +1366,12 @@ const Chessboard = () => {
       const updatedHistory = [...moveHistoryRef.current, newMove];
       moveHistoryRef.current = updatedHistory;
       setMoveHistory(updatedHistory);
+      
+      // Notify parent component of move history update
+      if (onMoveHistoryUpdate) {
+        onMoveHistoryUpdate(updatedHistory);
+      }
+      
       console.log('Move history updated:', updatedHistory.map(m => `${m.player} ${m.piece.type} ${m.notation}`));
       
       // Update game status
@@ -1443,8 +1451,8 @@ const Chessboard = () => {
         });
       }
       
-      // If AI is enabled and it's AI's turn, make an AI move
-      if (aiEnabled && nextPlayer === aiColor && !isInCheckmate && !isStalemate(newMovementTracker, nextPlayer)) {
+      // If AI is enabled and it's AI's turn, make an AI move (but not in multiplayer mode)
+      if (aiEnabled && nextPlayer === aiColor && !isInCheckmate && !isStalemate(newMovementTracker, nextPlayer) && !multiplayer) {
         makeAiMove();
       }
     });
@@ -1463,22 +1471,36 @@ const Chessboard = () => {
     }
   };
   
-  // Make AI move
-  const makeAiMove = () => {
+  // Make AI move with specified difficulty
+  const makeAiMove = (difficulty = aiDifficulty) => {
     setIsAiThinking(true);
-    
+
     // Use setTimeout to avoid blocking the UI
     setTimeout(() => {
       try {
         // Find the best move using our AI
-        const bestMove = findBestMove(movementTracker.current, aiColor, aiDifficulty);
-        
+        const bestMove = findBestMove(movementTracker.current, aiColor, difficulty);
+
         if (bestMove) {
           const [fromRow, fromCol] = bestMove.from;
           const [toRow, toCol] = bestMove.to;
-          
+
+          // Get piece information for return value
+          const piece = movementTracker.current[fromRow][fromCol];
+          const moveInfo = {
+            from: `${String.fromCharCode(97 + fromCol)}${8 - fromRow}`,
+            to: `${String.fromCharCode(97 + toCol)}${8 - toRow}`,
+            piece: piece ? piece.type : 'unknown'
+          };
+
           // Execute the move
           handlePieceMove(fromRow, fromCol, toRow, toCol);
+
+          // Return move info after a delay to allow the move to complete
+          setTimeout(() => {
+            setIsAiThinking(false);
+            return moveInfo;
+          }, 1000);
         } else {
           console.error('AI could not find a valid move');
           toast.error('AI could not find a valid move', {
@@ -1488,6 +1510,8 @@ const Chessboard = () => {
               color: '#fff',
             },
           });
+          setIsAiThinking(false);
+          return null;
         }
       } catch (error) {
         console.error('Error in AI move calculation:', error);
@@ -1498,8 +1522,8 @@ const Chessboard = () => {
             color: '#fff',
           },
         });
-      } finally {
         setIsAiThinking(false);
+        return null;
       }
     }, 500); // Small delay to show thinking state
   };
@@ -1578,13 +1602,13 @@ const Chessboard = () => {
     const planeGeometry = new THREE.PlaneGeometry(fullBoardSize, fullBoardSize);
     const planeMaterial = new THREE.MeshBasicMaterial({ 
       transparent: true, 
-      opacity: 0.001,  // Almost invisible
+      opacity: 0,  // Completely invisible
       side: THREE.DoubleSide 
     });
     
     const plane = new THREE.Mesh(planeGeometry, planeMaterial);
     plane.rotation.x = -Math.PI / 2; // Rotate to be horizontal
-    plane.position.y = 0.15; // Just above the board
+    plane.position.y = -0.85; // Just above the lowered board (-1.0 + 0.15)
     plane.name = 'boardClickPlane';
     
     // Add userData for click detection with row/col info
@@ -1592,7 +1616,12 @@ const Chessboard = () => {
       type: 'boardClickPlane'
     };
     
-    sceneRef.current.add(plane);
+    // Add the click plane to the board group so it rotates with the board
+    if (boardGroupRef.current) {
+      boardGroupRef.current.add(plane);
+    } else {
+      sceneRef.current.add(plane);
+    }
     console.log('Board click plane added');
   };
 
@@ -1818,6 +1847,17 @@ const Chessboard = () => {
     // Reset game state
     setCurrentPlayer(COLORS.WHITE);
     currentPlayerRef.current = COLORS.WHITE;
+    
+    // Reset board rotation for white player
+    if (boardGroupRef.current) {
+      boardGroupRef.current.rotation.y = 0;
+      console.log('Reset board rotation for white player');
+    }
+    
+    // Notify parent component of current player change
+    if (onCurrentPlayerChange) {
+      onCurrentPlayerChange(COLORS.WHITE);
+    }
     selectedPieceRef.current = null;
     setSelectedPiece(null);
     setValidMoves([]);
@@ -1827,6 +1867,12 @@ const Chessboard = () => {
     // Ensure move history is properly cleared
     moveHistoryRef.current = [];
     setMoveHistory([]);
+    
+    // Notify parent component of move history update
+    if (onMoveHistoryUpdate) {
+      onMoveHistoryUpdate([]);
+    }
+    
     console.log('Move history cleared', moveHistoryRef.current, moveHistory);
     
     // Close popup
@@ -1843,8 +1889,8 @@ const Chessboard = () => {
     // Reset AI thinking state
     setIsAiThinking(false);
     
-    // If AI is enabled and AI plays white, trigger AI move
-    if (aiEnabled && aiColor === COLORS.WHITE) {
+    // If AI is enabled and AI plays white, trigger AI move (but not in multiplayer mode)
+    if (aiEnabled && aiColor === COLORS.WHITE && !multiplayer) {
       setTimeout(() => makeAiMove(), 1000);
     }
     
@@ -1865,25 +1911,150 @@ const Chessboard = () => {
     });
   };
 
+  // Game control functions for multiplayer
+  const undoMove = () => {
+    if (moveHistoryRef.current.length === 0) {
+      toast.error('No moves to undo', {
+        style: {
+          borderRadius: '12px',
+          background: '#d32f2f',
+          color: '#fff',
+        },
+      });
+      return;
+    }
+
+    // Remove the last move from history
+    const newHistory = [...moveHistoryRef.current];
+    const lastMove = newHistory.pop();
+    moveHistoryRef.current = newHistory;
+    setMoveHistory(newHistory);
+
+    // Notify parent component of move history update
+    if (onMoveHistoryUpdate) {
+      onMoveHistoryUpdate(newHistory);
+    }
+
+    // Revert the board state
+    const previousBoard = createInitialBoard();
+    movementTracker.current = previousBoard.map(row => [...row]);
+
+    // Replay all moves except the last one
+    newHistory.forEach(move => {
+      const [fromRow, fromCol] = move.from;
+      const [toRow, toCol] = move.to;
+
+      // Update movement tracker
+      const piece = movementTracker.current[fromRow][fromCol];
+      movementTracker.current[fromRow][fromCol] = null;
+      movementTracker.current[toRow][toCol] = piece;
+    });
+
+    // Switch back to the previous player
+    const newPlayer = currentPlayerRef.current === COLORS.WHITE ? COLORS.BLACK : COLORS.WHITE;
+    setCurrentPlayer(newPlayer);
+    currentPlayerRef.current = newPlayer;
+    
+    // Rotate board for the new player (flip the view)
+    if (boardGroupRef.current) {
+      const rotationAngle = newPlayer === COLORS.WHITE ? 0 : Math.PI;
+      boardGroupRef.current.rotation.y = rotationAngle;
+      console.log(`Rotated board for ${newPlayer} player after undo (angle: ${rotationAngle})`);
+    }
+    
+    // Notify parent component of current player change
+    if (onCurrentPlayerChange) {
+      onCurrentPlayerChange(newPlayer);
+    }
+
+    // Clear selections
+    setSelectedPiece(null);
+    selectedPieceRef.current = null;
+    setValidMoves([]);
+    clearHighlights(true);
+
+    // Update board state
+    setBoardState(movementTracker.current.map(row => [...row]));
+    boardStateRef.current = movementTracker.current.map(row => [...row]);
+
+    // Recreate pieces on board
+    if (sceneRef.current) {
+      piecesRef.current.forEach(piece => sceneRef.current.remove(piece));
+      piecesRef.current.clear();
+    }
+    placePieces(movementTracker.current);
+
+    toast.success('Move undone', {
+      style: {
+        borderRadius: '12px',
+        background: '#4caf50',
+        color: '#fff',
+      },
+    });
+  };
+
+  const resignGame = () => {
+    const winner = currentPlayerRef.current === COLORS.WHITE ? 'Black' : 'White';
+    setGameStatus(`${winner} wins by resignation!`);
+    setWinner(winner);
+    setShowWinnerPopup(true);
+    setIsGameActive(false);
+
+    toast.success(`${winner} wins by resignation!`, {
+      icon: '🏳️',
+      duration: 4000,
+      style: {
+        borderRadius: '12px',
+        background: '#222',
+        color: '#fff',
+        padding: '12px 16px',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+        fontSize: '16px',
+        fontWeight: '500',
+      },
+    });
+  };
+
+  const offerDraw = () => {
+    // In a real multiplayer game, this would send a draw offer to the opponent
+    // For now, we'll just show a confirmation dialog
+    if (window.confirm('Offer a draw to your opponent?')) {
+      setGameStatus('Draw offered! Waiting for opponent response...');
+      toast('Draw offered to opponent', {
+        icon: '🤝',
+        duration: 3000,
+        style: {
+          borderRadius: '12px',
+          background: '#ff9800',
+          color: '#fff',
+          padding: '12px 16px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          fontSize: '16px',
+        },
+      });
+    }
+  };
+
+  // Expose functions and state to parent component via useImperativeHandle
+  React.useImperativeHandle(ref, () => ({
+    currentPlayer,
+    moveHistory,
+    gameStatus,
+    winner,
+    undoMove,
+    resignGame,
+    offerDraw,
+    restartGame,
+    makeAIMove: makeAiMove,
+  }));
+
   useEffect(() => {
     console.log('Move history state changed:', moveHistory);
   }, [moveHistory]);
 
-  // Toggle AI player
-  const toggleAI = () => {
-    setAiEnabled(!aiEnabled);
-    if (!aiEnabled && currentPlayer === aiColor) {
-      // If we're enabling AI and it's already AI's turn, trigger a move
-      setTimeout(() => makeAiMove(), 500);
-    }
-  };
-  
   // AI color is always black - no need to change it
   
-  // Change AI difficulty
-  const changeAIDifficulty = (difficulty) => {
-    setAiDifficulty(difficulty);
-  };
+  // Change AI difficulty - handled by parent component
 
   return (
     <div>
@@ -1923,281 +2094,9 @@ const Chessboard = () => {
         </div>
       )}
       
-      {/* Enhanced Current Player Status */}
-      <div className="absolute bottom-5 left-5 bg-gradient-to-r from-slate-900/95 to-slate-800/95 text-white px-6 py-4 rounded-xl z-10 backdrop-blur-md border border-slate-700/50 shadow-2xl animate-slide-in-bottom mobile-responsive">
-        <div className="flex items-center space-x-3">
-          {/* Player Indicator with Animation */}
-          <div className="relative">
-            <div className={`w-4 h-4 rounded-full ${currentPlayer === COLORS.WHITE ? 'bg-white shadow-lg' : 'bg-slate-800 border-2 border-white shadow-lg'} transition-all duration-300`}></div>
-            {currentPlayer === COLORS.WHITE && (
-              <div className="absolute inset-0 w-4 h-4 rounded-full bg-white animate-ping opacity-20"></div>
-            )}
-            {currentPlayer === COLORS.BLACK && (
-              <div className="absolute inset-0 w-4 h-4 rounded-full bg-white animate-ping opacity-20"></div>
-            )}
-          </div>
-          
-          {/* Player Text */}
-          <div className="flex flex-col">
-            <span className="text-sm font-medium text-slate-300">Current Turn</span>
-            <span className="text-lg font-bold text-white">
-              {currentPlayer === COLORS.WHITE ? 'White' : 'Black'}
-            </span>
-          </div>
-          
-          {/* AI Thinking Indicator */}
-        {isAiThinking && currentPlayer === aiColor && (
-            <div className="flex items-center space-x-2 ml-3 pl-3 border-l border-slate-600">
-              <div className="flex space-x-1">
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '0ms'}}></div>
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '150ms'}}></div>
-                <div className="w-2 h-2 bg-blue-400 rounded-full animate-bounce" style={{animationDelay: '300ms'}}></div>
-              </div>
-              <span className="text-sm text-blue-300 font-medium">AI thinking...</span>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Enhanced AI Controls Panel */}
-      <div className="absolute bottom-5 right-5 bg-gradient-to-br from-slate-900/95 to-slate-800/95 text-white p-5 rounded-xl z-10 backdrop-blur-md border border-slate-700/50 shadow-2xl w-72 animate-slide-in-bottom mobile-responsive">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">AI</span>
-            </div>
-            <h3 className="font-bold text-lg">AI Player</h3>
-          </div>
-          
-          {/* Enhanced Toggle Switch */}
-          <label className="relative inline-flex items-center cursor-pointer">
-            <input 
-              type="checkbox" 
-              className="sr-only peer" 
-              checked={aiEnabled}
-              onChange={toggleAI}
-            />
-            <div className="w-12 h-6 bg-slate-700 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300/20 rounded-full peer peer-checked:after:translate-x-6 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-green-500 peer-checked:to-emerald-500 shadow-lg"></div>
-          </label>
-        </div>
-        
-        {/* AI Status Indicator */}
-        {aiEnabled && (
-          <div className="mb-4 p-3 bg-slate-800/50 rounded-lg border border-slate-600/50">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-300">AI Status</span>
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span className="text-sm text-green-400 font-medium">Active</span>
-          </div>
-        </div>
-            <div className="mt-2 text-xs text-slate-400">
-              Playing as: <span className="font-medium text-white">{aiColor === COLORS.WHITE ? 'White' : 'Black'}</span>
-            </div>
-          </div>
-        )}
-        
-        
-        {/* Difficulty Selection */}
-        <div>
-          <p className="mb-2 text-sm font-medium text-slate-300">Difficulty Level</p>
-          <div className="grid grid-cols-3 gap-2">
-            <button 
-              onClick={() => changeAIDifficulty('easy')}
-              className={`py-2 px-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                aiDifficulty === 'easy' 
-                  ? 'bg-green-500 text-white shadow-lg transform scale-105' 
-                  : 'bg-slate-800/50 text-slate-300 border border-slate-600 hover:bg-slate-700/50 hover:text-white'
-              }`}
-            >
-              <div className="flex flex-col items-center space-y-1">
-                <span className="font-semibold">Easy</span>
-                <div className="flex space-x-1">
-                  <div className={`w-1 h-1 rounded-full ${
-                    aiDifficulty === 'easy' ? 'bg-white' : 'bg-slate-400'
-                  }`}></div>
-                </div>
-              </div>
-            </button>
-            <button 
-              onClick={() => changeAIDifficulty('medium')}
-              className={`py-2 px-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                aiDifficulty === 'medium' 
-                  ? 'bg-amber-500 shadow-lg transform scale-105 border-2 border-amber-400' 
-                  : 'bg-slate-800/50 border border-slate-600 hover:bg-slate-700/50'
-              }`}
-            >
-              <div className="flex flex-col items-center space-y-1">
-                <span className={`font-bold ${aiDifficulty === 'medium' ? 'text-white' : 'text-slate-300 hover:text-white'}`}>Medium</span>
-                <div className="flex space-x-1">
-                  <div className={`w-1 h-1 rounded-full ${
-                    aiDifficulty === 'medium' ? 'bg-white' : 'bg-slate-400'
-                  }`}></div>
-                  <div className={`w-1 h-1 rounded-full ${
-                    aiDifficulty === 'medium' ? 'bg-white' : 'bg-slate-400'
-                  }`}></div>
-                </div>
-              </div>
-            </button>
-            <button 
-              onClick={() => changeAIDifficulty('hard')}
-              className={`py-2 px-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-                aiDifficulty === 'hard' 
-                  ? 'bg-red-500 text-white shadow-lg transform scale-105' 
-                  : 'bg-slate-800/50 text-slate-300 border border-slate-600 hover:bg-slate-700/50 hover:text-white'
-              }`}
-            >
-              <div className="flex flex-col items-center space-y-1">
-                <span className="font-semibold">Hard</span>
-                <div className="flex space-x-1">
-                  <div className={`w-1 h-1 rounded-full ${
-                    aiDifficulty === 'hard' ? 'bg-white' : 'bg-slate-400'
-                  }`}></div>
-                  <div className={`w-1 h-1 rounded-full ${
-                    aiDifficulty === 'hard' ? 'bg-white' : 'bg-slate-400'
-                  }`}></div>
-                  <div className={`w-1 h-1 rounded-full ${
-                    aiDifficulty === 'hard' ? 'bg-white' : 'bg-slate-400'
-                  }`}></div>
-                </div>
-              </div>
-            </button>
-          </div>
-        </div>
-      </div>
-      
-      {/* Enhanced Move History Panel */}
-      <div className="absolute top-5 right-5 bg-gradient-to-br from-slate-900/95 to-slate-800/95 shadow-2xl p-5 rounded-xl max-h-[75vh] overflow-hidden z-10 w-80 backdrop-blur-md border border-slate-700/50 animate-slide-in-right mobile-responsive">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-orange-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">♔</span>
-            </div>
-            <h3 className="font-bold text-lg text-white">Move History</h3>
-          </div>
-          <div className="text-xs text-slate-400 bg-slate-800/50 px-2 py-1 rounded-full">
-            {moveHistory.length} moves
-          </div>
-        </div>
-        
-        {/* Move List Container */}
-        <div className="bg-slate-800/30 rounded-lg border border-slate-600/30 overflow-hidden">
-          <div className="max-h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800">
-          {moveHistory.length === 0 ? (
-              <div className="p-6 text-center">
-                <div className="w-16 h-16 mx-auto mb-3 bg-slate-700/50 rounded-full flex items-center justify-center">
-                  <span className="text-2xl text-slate-400">♟</span>
-                </div>
-                <p className="text-slate-400 text-sm">No moves yet</p>
-                <p className="text-slate-500 text-xs mt-1">Start playing to see move history</p>
-              </div>
-            ) : (
-              <div className="p-3">
-              {/* Group moves in pairs by turn number */}
-              {Array.from({ length: Math.ceil(moveHistory.length / 2) }, (_, i) => {
-                // Get white and black moves for this turn
-                const whiteMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.WHITE);
-                const blackMove = moveHistory.find((move, idx) => Math.floor(idx / 2) === i && move.player === COLORS.BLACK);
-                
-                return (
-                    <div key={i} className="mb-2 last:mb-0">
-                      {/* Turn Number */}
-                      <div className="flex items-center mb-1">
-                        <span className="text-slate-400 text-sm font-medium w-8 text-right mr-3">{i + 1}.</span>
-                    <div className="flex-1 grid grid-cols-2 gap-2">
-                          {/* White Move */}
-                    {whiteMove && (
-                            <div className={`p-2 rounded-lg transition-all duration-200 ${
-                              whiteMove.isCheckmate 
-                                ? 'bg-red-500/20 border border-red-500/30' 
-                                : whiteMove.isCheck 
-                                ? 'bg-yellow-500/20 border border-yellow-500/30'
-                                : whiteMove.isCapture
-                                ? 'bg-orange-500/20 border border-orange-500/30'
-                                : 'bg-slate-700/30 border border-slate-600/30 hover:bg-slate-700/50'
-                            }`}>
-                              <div className="flex items-center space-x-2">
-                                <span className="text-lg">{getPieceIcon(whiteMove.piece.type)}</span>
-                                <span className={`font-mono text-sm font-medium ${
-                                  whiteMove.isCheckmate 
-                                    ? 'text-red-300' 
-                                    : whiteMove.isCheck 
-                                    ? 'text-yellow-300'
-                                    : whiteMove.isCapture
-                                    ? 'text-orange-300'
-                                    : 'text-white'
-                                }`}>
-                                  {whiteMove.notation}
-                      </span>
-                                {whiteMove.isCheckmate && <span className="text-red-400 text-xs">#</span>}
-                                {whiteMove.isCheck && !whiteMove.isCheckmate && <span className="text-yellow-400 text-xs">+</span>}
-                              </div>
-                            </div>
-                    )}
-                          
-                          {/* Black Move */}
-                    {blackMove && (
-                            <div className={`p-2 rounded-lg transition-all duration-200 ${
-                              blackMove.isCheckmate 
-                                ? 'bg-red-500/20 border border-red-500/30' 
-                                : blackMove.isCheck 
-                                ? 'bg-yellow-500/20 border border-yellow-500/30'
-                                : blackMove.isCapture
-                                ? 'bg-orange-500/20 border border-orange-500/30'
-                                : 'bg-slate-700/30 border border-slate-600/30 hover:bg-slate-700/50'
-                            }`}>
-                              <div className="flex items-center space-x-2">
-                                <span className="text-lg">{getPieceIcon(blackMove.piece.type)}</span>
-                                <span className={`font-mono text-sm font-medium ${
-                                  blackMove.isCheckmate 
-                                    ? 'text-red-300' 
-                                    : blackMove.isCheck 
-                                    ? 'text-yellow-300'
-                                    : blackMove.isCapture
-                                    ? 'text-orange-300'
-                                    : 'text-white'
-                                }`}>
-                                  {blackMove.notation}
-                      </span>
-                                {blackMove.isCheckmate && <span className="text-red-400 text-xs">#</span>}
-                                {blackMove.isCheck && !blackMove.isCheckmate && <span className="text-yellow-400 text-xs">+</span>}
-                              </div>
-                            </div>
-                    )}
-                        </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-        </div>
-        
-        {/* Legend */}
-        {moveHistory.length > 0 && (
-          <div className="mt-3 pt-3 border-t border-slate-600/30">
-            <div className="flex items-center justify-center space-x-4 text-xs text-slate-400">
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                <span>Capture</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <span>Check</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                <span>Checkmate</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+
     </div>
   );
-};
+});
 
 export default Chessboard;
