@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#111122;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#242447;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="kingGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFD700;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#FFA500;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FF8C00;stop-opacity:1" />
+    </linearGradient>
+    <radialGradient id="glowGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#FFD700;stop-opacity:0.6" />
+      <stop offset="70%" style="stop-color:#FFA500;stop-opacity:0.3" />
+      <stop offset="100%" style="stop-color:#FFD700;stop-opacity:0" />
+    </radialGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="2" dy="2" stdDeviation="3" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <circle cx="90" cy="90" r="85" fill="url(#bgGradient)" stroke="#FFD700" stroke-width="2"/>
+  <circle cx="90" cy="90" r="80" fill="url(#glowGradient)"/>
+
+  <!-- Chess King -->
+  <g transform="translate(90,75)" filter="url(#shadow)">
+    <!-- King Crown -->
+    <path d="M0 -40 L-18 -24 L-12 -18 L-30 0 L-18 6 L-42 24 L-30 30 L-54 48 L-30 54 L-24 48 L-18 54 L-12 48 L0 54 L12 48 L18 54 L24 48 L30 54 L54 48 L42 30 L30 24 L18 6 L30 0 L18 -18 L12 -24 Z"
+          fill="url(#kingGradient)"
+          stroke="#B8860B"
+          stroke-width="2"/>
+
+    <!-- King Cross -->
+    <rect x="-10" y="-30" width="20" height="45" fill="#FFD700" stroke="#B8860B" stroke-width="1"/>
+    <rect x="-24" y="-18" width="48" height="20" fill="#FFD700" stroke="#B8860B" stroke-width="1"/>
+
+    <!-- King Base -->
+    <path d="M-18 24 L-18 36 L-24 42 L-24 48 L24 48 L24 42 L18 36 L18 24 Z"
+          fill="#8B4513"
+          stroke="#654321"
+          stroke-width="1"/>
+  </g>
+
+  <!-- ChessMaster Text -->
+  <text x="90" y="140" text-anchor="middle" fill="#FFD700" font-family="Arial, sans-serif" font-size="18" font-weight="bold">ChessMaster</text>
+  <text x="90" y="155" text-anchor="middle" fill="#FFA500" font-family="Arial, sans-serif" font-size="10" opacity="0.8">3D Chess Game</text>
+</svg>
