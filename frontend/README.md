@@ -1,4 +1,4 @@
-# 3D Chess Application
+# ChessMaster
 
 A modern 3D chess game built with React and Three.js.
 

@@ -1,8 +1,8 @@
-# 3D Chess Game
+# ChessMaster
 
-A modern, interactive 3D chess game built with React, Three.js, and WebGL. This project combines classic chess gameplay with stunning 3D graphics and intuitive user interaction.
+A modern, interactive 3D chess game built with React, Three.js, and WebGL. ChessMaster combines classic chess gameplay with stunning 3D graphics and intuitive user interaction.
 
-![Chess Game Screenshot](Screenshots/Screenshot%202025-04-17%20195159.png)
+![ChessMaster Game Screenshot](Screenshots/Screenshot%202025-04-17%20195159.png)
 
 ## Features
 
